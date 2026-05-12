@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import { NextRequest } from 'next/server'
 import { prisma, hasDatabaseUrl } from '@/lib/prisma'
 import { getSessionId } from '@/lib/iptv-shared'
