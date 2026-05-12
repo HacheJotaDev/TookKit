@@ -20,7 +20,8 @@ workflows:
       - name: Build Next.js
         script: |
           mv src/app/api src/app/api_backup
-          NEXT_PUBLIC_API_URL=https://hjtoolsx.vercel.app npm run build
+          NEXT_PUBLIC_API_URL=https://hjtoolsx.vercel.app npx next build
+          npx next export
           mv src/app/api_backup src/app/api
 
       - name: Sync Capacitor
