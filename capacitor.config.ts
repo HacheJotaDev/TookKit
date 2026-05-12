@@ -6,6 +6,7 @@ const config: CapacitorConfig = {
   webDir: 'out',
   bundledWebRuntime: false,
   server: {
+    url: 'https://hjtoolsx.vercel.app',
     androidScheme: 'https',
     cleartext: true,
   },

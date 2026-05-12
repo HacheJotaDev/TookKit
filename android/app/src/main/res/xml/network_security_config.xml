@@ -9,4 +9,11 @@
         <domain includeSubdomains="true">localhost</domain>
         <domain includeSubdomains="true">10.0.2.2</domain>
     </domain-config>
+    <domain-config>
+        <domain includeSubdomains="true">vercel.app</domain>
+        <domain includeSubdomains="true">hjtoolsx.vercel.app</domain>
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
 </network-security-config>

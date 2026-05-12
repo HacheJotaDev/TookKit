@@ -9,7 +9,6 @@ workflows:
       java: 17
       vars:
         PACKAGE_NAME: "com.hjtoolsx.app"
-        NEXT_PUBLIC_API_URL: "https://hjtools-x.vercel.app"
 
     # Android signing configuration
     # Upload your keystore in Codemagic UI: Settings > Environment variables > Keystore
@@ -38,17 +37,6 @@ workflows:
         script: |
           npm ci
 
-      - name: Generate Prisma client
-        script: |
-          npx prisma generate
-
-      - name: Build Next.js static export
-        script: |
-          # Temporarily move API routes for static export
-          mv src/app/api src/app/_api
-          npx next build
-          mv src/app/_api src/app/api
-
       - name: Sync Capacitor
         script: |
           npx cap sync android
@@ -61,8 +49,6 @@ workflows:
         script: |
           cd android
           ./gradlew assembleDebug
-        artifact_patterns:
-          - "android/app/build/outputs/**/*.apk"
 
       - name: Build Android APK (release)
         script: |
@@ -78,8 +64,6 @@ workflows:
             cd android
             ./gradlew assembleDebug
           fi
-        artifact_patterns:
-          - "android/app/build/outputs/**/*.apk"
 
     artifacts:
       - android/app/build/outputs/**/*.apk
