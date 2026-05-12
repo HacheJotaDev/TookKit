@@ -1,22 +1,12 @@
 workflows:
   android-apk:
-    name: HJTools X - Android APK
+    name: HJTools X APK
+
     max_build_duration: 30
-    instance_type: mac_mini_m2
 
     environment:
       node: 20
       java: 17
-
-      env:
-        NEXT_PUBLIC_API_URL: "https://hjtoolsx.vercel.app"
-
-      vars:
-        PACKAGE_NAME: "com.hjtoolsx.app"
-
-      android_signing:
-        - keystore_reference: KEYSTORE_BASE64
-          keystore_path: /tmp/keystore.jks
 
     scripts:
       - name: Install dependencies
@@ -29,7 +19,7 @@ workflows:
 
       - name: Build Next.js
         script: |
-          npm run build
+          NEXT_PUBLIC_API_URL=https://hjtoolsx.vercel.app npm run build
 
       - name: Sync Capacitor
         script: |
