@@ -12,6 +12,7 @@ import { toast } from 'sonner'
 import { List } from 'react-window'
 import { IptvChecker } from '@/components/iptv/iptv-checker'
 import { IptvPlayer } from '@/components/iptv/iptv-player'
+import { apiFetch } from '@/lib/api-config'
 
 // ============================================================
 // TYPES
@@ -413,7 +414,7 @@ function CheckerTab() {
       setResults(prev => [...prev, { cc, status: 'checking' }])
 
       try {
-        const res = await fetch('/api/check', {
+        const res = await apiFetch('/api/check', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ cc }),
@@ -666,7 +667,7 @@ function EmailTab() {
 
       // Then try server recovery
       try {
-        const res = await fetch('/api/email/recover')
+        const res = await apiFetch('/api/email/recover')
         const data = await res.json()
         if (data.address && data.token && data.id) {
           const recovered: EmailAccount = {
@@ -708,7 +709,7 @@ function EmailTab() {
     setIsCreating(true)
     setTokenExpired(false)
     try {
-      const res = await fetch('/api/email/create', { method: 'POST' })
+      const res = await apiFetch('/api/email/create', { method: 'POST' })
       const data = await res.json()
 
       if (data.error) {
@@ -734,7 +735,7 @@ function EmailTab() {
     if (!t) return
 
     try {
-      const res = await fetch(`/api/email/messages?provider=${encodeURIComponent(p)}`, {
+      const res = await apiFetch(`/api/email/messages?provider=${encodeURIComponent(p)}`, {
         headers: { Authorization: `Bearer ${t}`, 'X-Mail-Provider': p },
       })
 
@@ -760,7 +761,7 @@ function EmailTab() {
     setIsLoadingMsg(true)
 
     try {
-      const res = await fetch(`/api/email/messages/${msg.id}?provider=${encodeURIComponent(account.provider)}`, {
+      const res = await apiFetch(`/api/email/messages/${msg.id}?provider=${encodeURIComponent(account.provider)}`, {
         headers: { Authorization: `Bearer ${account.token}`, 'X-Mail-Provider': account.provider },
       })
       const data = await res.json()
@@ -793,7 +794,7 @@ function EmailTab() {
     if (!account) return
 
     try {
-      await fetch('/api/email/delete', {
+      await apiFetch('/api/email/delete', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ accountId: account.id, token: account.token, provider: account.provider }),

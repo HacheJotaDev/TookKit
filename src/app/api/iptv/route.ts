@@ -1,8 +1,6 @@
 import { NextRequest } from 'next/server'
 import { checkLine } from '@/lib/iptv-shared'
 
-export const runtime = 'nodejs'
-export const dynamic = 'force-dynamic'
 
 /**
  * POST: Check a single IPTV line (URL or combo format).

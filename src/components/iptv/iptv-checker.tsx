@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useQuery } from '@tanstack/react-query'
+import { apiFetch } from '@/lib/api-config'
 import {
   useCreateJob,
   useCancelJob,
@@ -120,7 +121,7 @@ export function IptvChecker() {
   const { data: completedJobsData } = useQuery<CompletedJob[]>({
     queryKey: ['iptv', 'completedJobs', isRunning],
     queryFn: async () => {
-      const res = await fetch('/api/iptv/jobs?includeCompleted=true')
+      const res = await apiFetch('/api/iptv/jobs?includeCompleted=true')
       if (!res.ok) return []
       const data = await res.json()
       return (data.jobs || []).filter(
@@ -150,7 +151,7 @@ export function IptvChecker() {
       while (!stopRef.current) {
         try {
           const concurrency = parseInt(threads) || 5
-          const res = await fetch(`/api/iptv/jobs/${jobId}/process`, {
+          const res = await apiFetch(`/api/iptv/jobs/${jobId}/process`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ threads: concurrency }),

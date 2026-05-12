@@ -1,7 +1,5 @@
 import { NextRequest } from 'next/server'
 
-export const runtime = 'nodejs'
-export const dynamic = 'force-dynamic'
 
 // MAG STB headers for IPTV streams
 const STB_HEADERS: Record<string, string> = {

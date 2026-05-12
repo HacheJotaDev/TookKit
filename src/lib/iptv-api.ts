@@ -1,5 +1,7 @@
 // ─── IPTV API Types ─────────────────────────────────────────────────────────
 
+import { apiUrl, getSessionId } from './api-config'
+
 // ── Job Types ──
 
 export type JobStatus = 'running' | 'paused' | 'cancelled' | 'completed'
@@ -236,12 +238,21 @@ export class ApiError extends Error {
 // ─── Fetch Helpers ──────────────────────────────────────────────────────────
 
 async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
+  const sessionId = typeof window !== 'undefined' ? getSessionId() : ''
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  if (sessionId) {
+    headers['x-session-id'] = sessionId
+  }
+  if (options?.headers) {
+    const optHeaders = options.headers as Record<string, string>
+    Object.assign(headers, optHeaders)
+  }
+
+  const res = await fetch(apiUrl(url), {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    },
+    headers,
   })
 
   const data = await res.json()

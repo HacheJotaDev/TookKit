@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-export const runtime = 'nodejs'
-export const dynamic = 'force-dynamic'
 
 // Both providers share the same API format but are separate backends
 const MAIL_PROVIDERS = [

@@ -1,17 +1,24 @@
 {
-  "name": "nextjs_tailwind_shadcn_ts",
-  "version": "0.2.0",
+  "name": "hjtools-x",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3000 2>&1 | tee dev.log",
-    "build": "prisma generate && next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
-    "start": "NODE_ENV=production bun .next/standalone/server.js 2>&1 | tee server.log",
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "build:apk": "mv src/app/api src/app/_api && NEXT_PUBLIC_API_URL=https://hjtools-x.vercel.app next build; mv src/app/_api src/app/api",
+    "start": "next start",
     "lint": "eslint .",
     "postinstall": "prisma generate",
     "db:push": "prisma db push",
-    "db:migrate": "prisma migrate deploy"
+    "db:migrate": "prisma migrate deploy",
+    "cap:sync": "npx cap sync android",
+    "cap:build": "npm run build:apk && npx cap sync android"
   },
   "dependencies": {
+    "@capacitor/android": "^6.2.1",
+    "@capacitor/cli": "^6.2.1",
+    "@capacitor/core": "^6.2.1",
+    "@capacitor/splash-screen": "^6.0.4",
     "@prisma/client": "^6.19.3",
     "@tanstack/react-query": "^5.82.0",
     "framer-motion": "^12.23.2",

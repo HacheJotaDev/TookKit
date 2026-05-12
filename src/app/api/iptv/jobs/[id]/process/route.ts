@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma, hasDatabaseUrl } from '@/lib/prisma'
 import { checkLine, getSessionId } from '@/lib/iptv-shared'
 
-export const runtime = 'nodejs'
-export const dynamic = 'force-dynamic'
 
 interface RouteContext {
   params: Promise<{ id: string }>

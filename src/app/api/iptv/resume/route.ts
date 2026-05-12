@@ -2,8 +2,6 @@ import { NextRequest } from 'next/server'
 import { prisma, hasDatabaseUrl } from '@/lib/prisma'
 import { getSessionId } from '@/lib/iptv-shared'
 
-export const runtime = 'nodejs'
-export const dynamic = 'force-dynamic'
 
 /**
  * GET — Full state recovery for session resume

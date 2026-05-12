@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { List, useListRef } from 'react-window'
+import { apiFetch, apiUrl } from '@/lib/api-config'
 import {
   usePlaylists, usePlaylist, useSavePlaylist, useDeletePlaylist,
   useFavorites, useAddFavorite, useRemoveFavorite,
@@ -433,7 +434,7 @@ export function IptvPlayer() {
         if (abortRef.current?.signal.aborted) return
 
         if (Hls.isSupported()) {
-          const proxyUrl = `/api/iptv/stream?url=${encodeURIComponent(streamUrl)}`
+          const proxyUrl = apiUrl(`/api/iptv/stream?url=${encodeURIComponent(streamUrl)}`)
           const hls = new Hls({
             enableWorker: true,
             lowLatencyMode: true,
@@ -497,7 +498,7 @@ export function IptvPlayer() {
         setIsPlaying(true)
         setUseProxy(false)
       }).catch(() => {
-        video.src = `/api/iptv/stream?url=${encodeURIComponent(streamUrl)}`
+        video.src = apiUrl(`/api/iptv/stream?url=${encodeURIComponent(streamUrl)}`)
         video.play().then(() => {
           clearLoadingTimeout()
           setIsPlaying(true)
@@ -552,7 +553,7 @@ export function IptvPlayer() {
     destroyHls()
 
     try {
-      const res = await fetch('/api/iptv/playlist', {
+      const res = await apiFetch('/api/iptv/playlist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: playlistUrl.trim() }),

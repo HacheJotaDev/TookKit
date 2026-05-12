@@ -1,7 +1,5 @@
 import { NextRequest } from 'next/server'
 
-export const runtime = 'nodejs'
-export const dynamic = 'force-dynamic'
 
 // Provider base URLs
 const PROVIDER_BASE_URLS: Record<string, string> = {
