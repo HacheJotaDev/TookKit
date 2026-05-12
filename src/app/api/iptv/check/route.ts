@@ -1,9 +1,6 @@
-export const dynamic = 'force-dynamic'
 
 import { NextRequest } from 'next/server'
 import { checkLine } from '@/lib/iptv-shared'
-
-
 /**
  * POST: Process a batch of lines synchronously.
  * Client-driven batch processing — the frontend sends N lines at a time,

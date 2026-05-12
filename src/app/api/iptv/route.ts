@@ -1,9 +1,6 @@
-export const dynamic = 'force-dynamic'
 
 import { NextRequest } from 'next/server'
 import { checkLine } from '@/lib/iptv-shared'
-
-
 /**
  * POST: Check a single IPTV line (URL or combo format).
  * Backward-compatible endpoint — delegates to the shared checkLine utility.

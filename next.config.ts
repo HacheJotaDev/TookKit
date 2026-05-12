@@ -1,12 +1,8 @@
 import type { NextConfig } from "next";
 
-const isApkBuild = !!process.env.NEXT_PUBLIC_API_URL;
-
 const nextConfig: NextConfig = {
-  output: isApkBuild ? "export" : "standalone",
   images: {
-    unoptimized: isApkBuild,
-    remotePatterns: isApkBuild ? undefined : [
+    remotePatterns: [
       {
         protocol: 'https',
         hostname: '**',
@@ -21,7 +17,6 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   reactStrictMode: false,
-  trailingSlash: isApkBuild,
 };
 
 export default nextConfig;

@@ -1,8 +1,5 @@
-export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-
-
 // Both providers share the same API format but are separate backends
 const MAIL_PROVIDERS = [
   { name: 'mail.tm', baseUrl: 'https://api.mail.tm' },

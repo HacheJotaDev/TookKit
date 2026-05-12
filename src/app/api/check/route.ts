@@ -1,8 +1,5 @@
-export const dynamic = 'force-dynamic'
 
 import { NextRequest } from 'next/server'
-
-
 export async function POST(req: NextRequest) {
   try {
     const { cc } = await req.json()

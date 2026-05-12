@@ -1,8 +1,5 @@
-export const dynamic = 'force-dynamic'
 
 import { NextRequest } from 'next/server'
-
-
 // Provider base URLs
 const PROVIDER_BASE_URLS: Record<string, string> = {
   'mail.tm': 'https://api.mail.tm',

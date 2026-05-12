@@ -1,10 +1,7 @@
-export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma, hasDatabaseUrl } from '@/lib/prisma'
 import { getSessionId } from '@/lib/iptv-shared'
-
-
 /**
  * POST — Create a new IPTV check job.
  * Body: { lines: string[], inputMode: "url"|"combo", serverHost?: string, threads?: number }

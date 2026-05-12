@@ -1,8 +1,5 @@
-export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-
-
 /**
  * GET /api/email/recover
  * Recover the user's active email from the database using their session ID.
