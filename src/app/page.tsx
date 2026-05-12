@@ -224,7 +224,7 @@ export default function Home() {
 // ============================================================
 
 function CardsTab() {
-  const [bin, setBin] = useState('414718149648xxxx')
+  const [bin, setBin] = useState('')
   const [quantity, setQuantity] = useState('10')
   const [customMonth, setCustomMonth] = useState('')
   const [customYear, setCustomYear] = useState('')
@@ -275,7 +275,7 @@ function CardsTab() {
           type="text"
           value={bin}
           onChange={(e) => setBin(e.target.value)}
-          placeholder="414718149648xxxx"
+          placeholder="4532xxxx o 5234xxxxxxxx"
           className="w-full bg-[#09090b] theme-input border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white theme-text placeholder-white/20 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 font-mono transition-colors"
         />
         <div className="flex gap-2">
