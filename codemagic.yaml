@@ -1,99 +1,94 @@
 workflows:
-android-apk:
-name: HJTools X - Android APK
-max_build_duration: 30
-instance_type: mac_mini_m2
+  android-apk:
+    name: HJTools X - Android APK
+    max_build_duration: 30
+    instance_type: mac_mini_m2
 
-environment:  
-  node: 20  
-  java: 17  
+    environment:
+      node: 20
+      java: 17
+      vars:
+        PACKAGE_NAME: "com.hjtoolsx.app"
+        NEXT_PUBLIC_API_URL: "https://hjtools-x.vercel.app"
 
-  env:  
-    NEXT_PUBLIC_API_URL: "https://hjtools-x.vercel.app"  
+    # Android signing configuration
+    # Upload your keystore in Codemagic UI: Settings > Environment variables > Keystore
+    # Or set these as environment variables in Codemagic:
+    # KEYSTORE_BASE64 - base64 encoded keystore file
+    # KEYSTORE_PASSWORD
+    # KEY_ALIAS
+    # KEY_PASSWORD
 
-  vars:  
-    PACKAGE_NAME: "com.hjtoolsx.app"  
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
 
-  # Android signing configuration  
-  # Upload your keystore in Codemagic UI: Settings > Environment variables > Keystore  
-  # Or set these as environment variables in Codemagic:  
-  # KEYSTORE_BASE64 - base64 encoded keystore file  
-  # KEYSTORE_PASSWORD  
-  # KEY_ALIAS  
-  # KEY_PASSWORD  
+    scripts:
+      - name: Decode keystore
+        script: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 --decode > /tmp/keystore.jks
+            export KEYSTORE_PATH=/tmp/keystore.jks
+          fi
 
-  android_signing:  
-    - keystore_reference: KEYSTORE_BASE64  
-      keystore_path: /tmp/keystore.jks  
+      - name: Install Node.js dependencies
+        script: |
+          npm ci
 
-triggering:  
-  events:  
-    - push  
-  branch_patterns:  
-    - pattern: main  
-      include: true  
+      - name: Generate Prisma client
+        script: |
+          npx prisma generate
 
-scripts:  
-  - name: Decode keystore  
-    script: |  
-      if [ -n "$KEYSTORE_BASE64" ]; then  
-        echo "$KEYSTORE_BASE64" | base64 --decode > /tmp/keystore.jks  
-        export KEYSTORE_PATH=/tmp/keystore.jks  
-      fi  
+      - name: Build Next.js static export
+        script: |
+          # Temporarily move API routes for static export
+          mv src/app/api src/app/_api
+          npx next build
+          mv src/app/_api src/app/api
 
-  - name: Install Node.js dependencies  
-    script: |  
-      npm ci  
+      - name: Sync Capacitor
+        script: |
+          npx cap sync android
 
-  - name: Generate Prisma client  
-    script: |  
-      npx prisma generate  
+      - name: Set Android SDK permissions
+        script: |
+          chmod +x android/gradlew
 
-  - name: Build Next.js static export  
-    script: |  
-      # Temporarily move API routes for static export  
-      mv src/app/api src/app/_api  
-      NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL npx next build  
-      mv src/app/_api src/app/api  
+      - name: Build Android APK (debug)
+        script: |
+          cd android
+          ./gradlew assembleDebug
+        artifact_patterns:
+          - "android/app/build/outputs/**/*.apk"
 
-  - name: Sync Capacitor  
-    script: |  
-      npx cap sync android  
+      - name: Build Android APK (release)
+        script: |
+          if [ -f /tmp/keystore.jks ]; then
+            cd android
+            ./gradlew assembleRelease \
+              -Pandroid.injected.signing.store.file=/tmp/keystore.jks \
+              -Pandroid.injected.signing.store.password=$KEYSTORE_PASSWORD \
+              -Pandroid.injected.signing.key.alias=$KEY_ALIAS \
+              -Pandroid.injected.signing.key.password=$KEY_PASSWORD
+          else
+            echo "No keystore found - building debug APK instead"
+            cd android
+            ./gradlew assembleDebug
+          fi
+        artifact_patterns:
+          - "android/app/build/outputs/**/*.apk"
 
-  - name: Set Android SDK permissions  
-    script: |  
-      chmod +x android/gradlew  
+    artifacts:
+      - android/app/build/outputs/**/*.apk
+      - android/app/build/outputs/**/*.aab
 
-  - name: Build Android APK (debug)  
-    script: |  
-      cd android  
-      ./gradlew assembleDebug  
-    artifact_pattern: "android/app/build/outputs/**/*.apk"  
-
-  - name: Build Android APK (release)  
-    script: |  
-      if [ -f /tmp/keystore.jks ]; then  
-        cd android  
-        ./gradlew assembleRelease \  
-          -Pandroid.injected.signing.store.file=/tmp/keystore.jks \  
-          -Pandroid.injected.signing.store.password=$KEYSTORE_PASSWORD \  
-          -Pandroid.injected.signing.key.alias=$KEY_ALIAS \  
-          -Pandroid.injected.signing.key.password=$KEY_PASSWORD  
-      else  
-        echo "No keystore found - building debug APK instead"  
-        cd android  
-        ./gradlew assembleDebug  
-      fi  
-    artifact_pattern: "android/app/build/outputs/**/*.apk"  
-
-artifacts:  
-  - android/app/build/outputs/**/*.apk  
-  - android/app/build/outputs/**/*.aab  
-
-publishing:  
-  email:  
-    recipients:  
-      - hachejota.dev@gmail.com  
-    notify:  
-      success: true  
-      failure: true
+    publishing:
+      email:
+        recipients:
+          - hachejota.dev@gmail.com
+        notify:
+          success: true
+          failure: true
