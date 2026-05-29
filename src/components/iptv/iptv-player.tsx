@@ -7,17 +7,9 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { List, useListRef } from 'react-window'
-import { apiFetch, apiUrl } from '@/lib/api-config'
-import {
-  usePlaylists, usePlaylist, useSavePlaylist, useDeletePlaylist,
-  useFavorites, useAddFavorite, useRemoveFavorite,
-  useHistory, useAddHistory,
-  useSavePlayerState,
-  useResumeState,
-} from '@/hooks/use-iptv'
+import { apiUrl } from '@/lib/api-config'
 import type {
-  Channel, Favorite, HistoryEntry, PlaylistSummary,
-  AddFavoriteInput, SavePlayerStateInput, CurrentChannel,
+  Channel, SavePlayerStateInput, CurrentChannel,
 } from '@/lib/iptv-api'
 
 // ============================================================
@@ -26,6 +18,140 @@ import type {
 
 const GROUP_FAVORITES = '__favorites__'
 const GROUP_RECENTS = '__recents__'
+
+// ============================================================
+// STB Headers for M3U fetch
+// ============================================================
+
+const STB_HEADERS: Record<string, string> = {
+  'User-Agent': 'Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 4 rev: 2721 Mobile Safari/533.3',
+  'Accept': '*/*',
+  'Connection': 'Keep-Alive',
+  'Accept-Encoding': 'gzip, deflate',
+  'Cookie': 'stb_lang=en; timezone=Europe%2FIstanbul;',
+}
+
+// ============================================================
+// localStorage helpers (NO DATABASE NEEDED)
+// ============================================================
+
+interface LocalFavorite {
+  channelName: string
+  channelUrl: string
+  channelLogo: string
+  channelGroup: string
+}
+
+interface LocalHistory {
+  channelName: string
+  channelUrl: string
+  channelLogo: string
+  channelGroup: string
+  watchedAt: string
+}
+
+interface LocalPlaylist {
+  id: string
+  url: string
+  name: string
+  channelCount: number
+  channels: Channel[]
+  groups: string[]
+  accessedAt: string
+}
+
+const FAV_KEY = 'hjtools_iptv_favorites'
+const HIST_KEY = 'hjtools_iptv_history'
+const PL_KEY = 'hjtools_iptv_playlists'
+const STATE_KEY = 'hjtools_iptv_player_state'
+
+function loadFromStorage<T>(key: string, fallback: T): T {
+  if (typeof window === 'undefined') return fallback
+  try {
+    const raw = localStorage.getItem(key)
+    return raw ? JSON.parse(raw) : fallback
+  } catch { return fallback }
+}
+
+function saveToStorage(key: string, data: unknown) {
+  if (typeof window === 'undefined') return
+  try { localStorage.setItem(key, JSON.stringify(data)) } catch { /* full */ }
+}
+
+function getFavorites(): LocalFavorite[] { return loadFromStorage(FAV_KEY, []) }
+function getHistory(): LocalHistory[] { return loadFromStorage(HIST_KEY, []) }
+function getPlaylists(): LocalPlaylist[] { return loadFromStorage(PL_KEY, []) }
+
+// ============================================================
+// Client-side M3U parser (same logic as server route)
+// ============================================================
+
+function parseM3U(text: string): { channels: Channel[]; groups: string[] } {
+  const channels: Channel[] = []
+  const groupSet = new Set<string>()
+
+  const normalizedText = text
+    .replace(/^\uFEFF/, '')
+    .replace(/\u0000/g, '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+
+  const lines = normalizedText.split('\n')
+  let currentInfo: { name: string; logo: string; group: string; tvgId: string } | null = null
+  let currentGroup = ''
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim()
+    if (!line) continue
+
+    if (line.startsWith('#EXTINF:')) {
+      const tvgIdMatch = line.match(/tvg-id=["']([^"']*)["']/)
+      const tvgLogoMatch = line.match(/tvg-logo=["']([^"']*)["']/)
+      const groupMatch = line.match(/group-title=["']([^"']*)["']/)
+      const commaIdx = line.lastIndexOf(',')
+      const name = commaIdx !== -1 ? line.substring(commaIdx + 1).trim() : 'Sin Nombre'
+      const group = groupMatch?.[1] || currentGroup || 'Sin Categoría'
+
+      currentInfo = {
+        name: name || 'Sin Nombre',
+        logo: tvgLogoMatch?.[1] || '',
+        group,
+        tvgId: tvgIdMatch?.[1] || '',
+      }
+      groupSet.add(group)
+    } else if (line.startsWith('#EXTGRP:')) {
+      currentGroup = line.substring(8).trim()
+    } else if (line.startsWith('#EXTVLCOPT:') || line.startsWith('#EXTALBVNLIMIT:') || line.startsWith('#EXTBYTETARGET:')) {
+      continue
+    } else if (line.startsWith('#EXTM3U')) {
+      continue
+    } else if (line.startsWith('#')) {
+      continue
+    } else if (currentInfo) {
+      const cleanUrl = line.replace(/\s+/g, '').replace(/[\u200B-\u200D\uFEFF]/g, '')
+      if (cleanUrl) {
+        channels.push({ ...currentInfo, url: cleanUrl })
+      }
+      currentInfo = null
+      currentGroup = ''
+    } else if (line.startsWith('http')) {
+      const cleanUrl = line.replace(/\s+/g, '').replace(/[\u200B-\u200D\uFEFF]/g, '')
+      if (cleanUrl) {
+        channels.push({
+          name: `Canal ${channels.length + 1}`,
+          url: cleanUrl,
+          logo: '',
+          group: currentGroup || 'Sin Categoría',
+          tvgId: '',
+        })
+        groupSet.add(currentGroup || 'Sin Categoría')
+        currentGroup = ''
+      }
+    }
+  }
+
+  return { channels, groups: [...groupSet].sort() }
+}
 
 // ============================================================
 // Debounce hook (local)
@@ -48,7 +174,7 @@ interface RowData {
   channels: Channel[]
   currentChannel: { name: string; url: string; logo: string; group?: string } | null
   isPlaying: boolean
-  favorites: Favorite[]
+  favorites: LocalFavorite[]
   playChannel: (ch: { name: string; url: string; logo: string; group?: string }) => void
   toggleFavorite: (ch: { name: string; url: string; logo: string; group?: string }, e: React.MouseEvent) => void
 }
@@ -154,23 +280,56 @@ export function IptvPlayer() {
   // --- Saved playlist loading state ---
   const [loadPlaylistId, setLoadPlaylistId] = useState<string | null>(null)
 
-  // --- TanStack Query hooks ---
-  const { data: playlistsData } = usePlaylists()
-  const { data: loadedPlaylist } = usePlaylist(loadPlaylistId)
-  const savePlaylistMutation = useSavePlaylist()
-  const deletePlaylistMutation = useDeletePlaylist()
-  const { data: favoritesData } = useFavorites()
-  const addFavoriteMutation = useAddFavorite()
-  const removeFavoriteMutation = useRemoveFavorite()
-  const { data: historyData } = useHistory()
-  const addHistoryMutation = useAddHistory()
-  const savePlayerStateMutation = useSavePlayerState()
-  const { data: resumeData, isLoading: resumeLoading } = useResumeState()
+  // --- Local state from localStorage (NO DATABASE) ---
+  const [localPlaylists, setLocalPlaylists] = useState<LocalPlaylist[]>([])
+  const [localFavorites, setLocalFavorites] = useState<LocalFavorite[]>([])
+  const [localHistory, setLocalHistory] = useState<LocalHistory[]>([])
+
+  // Load from localStorage on mount
+  useEffect(() => {
+    setLocalPlaylists(getPlaylists())
+    setLocalFavorites(getFavorites())
+    setLocalHistory(getHistory())
+
+    // Restore player state
+    const savedState = loadFromStorage<SavePlayerStateInput | null>(STATE_KEY, null)
+    if (savedState) {
+      if (savedState.volume !== undefined) setVolume(savedState.volume)
+      if (savedState.isMuted !== undefined) setIsMuted(savedState.isMuted)
+      if (savedState.useProxy !== undefined) setUseProxy(savedState.useProxy)
+      if (savedState.selectedGroup) setSelectedGroup(savedState.selectedGroup)
+      if (savedState.playlistUrl) setPlaylistUrl(savedState.playlistUrl)
+
+      const video = videoRef.current
+      if (video) {
+        if (savedState.volume !== undefined) video.volume = savedState.volume
+        if (savedState.isMuted !== undefined) video.muted = savedState.isMuted
+      }
+
+      // Restore last playlist
+      const savedPlaylists = getPlaylists()
+      if (savedPlaylists.length > 0 && savedState.playlistUrl) {
+        const lastPl = savedPlaylists.find(p => p.url === savedState.playlistUrl)
+        if (lastPl && lastPl.channels && lastPl.channels.length > 0) {
+          setChannels(lastPl.channels)
+          setGroups(lastPl.groups || [])
+          toast.success(`${lastPl.channels.length} canales restaurados`)
+        }
+      }
+
+      // Restore last channel
+      if (savedState.currentChannel && typeof savedState.currentChannel === 'object' && savedState.currentChannel.url) {
+        setTimeout(() => {
+          playChannelRef.current(savedState.currentChannel as { name: string; url: string; logo: string; group?: string })
+        }, 500)
+      }
+    }
+  }, [])
 
   // --- Derived data ---
-  const playlists: PlaylistSummary[] = playlistsData?.playlists ?? []
-  const favorites: Favorite[] = favoritesData?.favorites ?? []
-  const history: HistoryEntry[] = historyData?.history ?? []
+  const playlists: LocalPlaylist[] = localPlaylists
+  const favorites: LocalFavorite[] = localFavorites
+  const history: LocalHistory[] = localHistory
 
   // --- Refs ---
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -181,8 +340,6 @@ export function IptvPlayer() {
   const abortRef = useRef<AbortController | null>(null)
   const loadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const stateSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const resumeAttemptedRef = useRef(false)
-
   const MAX_RETRIES = 2
 
   // Debounced search
@@ -222,74 +379,31 @@ export function IptvPlayer() {
       clearTimeout(stateSaveTimerRef.current)
     }
     stateSaveTimerRef.current = setTimeout(() => {
-      savePlayerStateMutation.mutate(params)
+      // Save to localStorage instead of API
+      const current = loadFromStorage<SavePlayerStateInput>(STATE_KEY, {})
+      saveToStorage(STATE_KEY, { ...current, ...params })
     }, 2000)
-  }, [savePlayerStateMutation])
+  }, [])
 
-  // ============================================================
-  // Resume state on mount
-  // ============================================================
+  // (Resume state is now handled in the initial useEffect on mount)
 
+  // Load a saved playlist from localStorage
   useEffect(() => {
-    if (resumeLoading || resumeAttemptedRef.current) return
-    if (!resumeData) return
-
-    resumeAttemptedRef.current = true
-
-    if (resumeData.playerState) {
-      const ps = resumeData.playerState
-      setVolume(ps.volume)
-      setIsMuted(ps.isMuted)
-      setUseProxy(ps.useProxy)
-      setSelectedGroup(ps.selectedGroup || 'all')
-      if (ps.playlistUrl) {
-        setPlaylistUrl(ps.playlistUrl)
-      }
-
-      const video = videoRef.current
-      if (video) {
-        video.volume = ps.volume
-        video.muted = ps.isMuted
-      }
-    }
-
-    if (resumeData.lastPlaylist) {
-      const lp = resumeData.lastPlaylist
-      if (lp.channels && Array.isArray(lp.channels) && lp.channels.length > 0) {
-        setChannels(lp.channels)
-        setGroups(lp.groups || [])
-        toast.success(`${lp.channels.length} canales restaurados`)
-      }
-
-      if (resumeData.playerState?.currentChannel && typeof resumeData.playerState.currentChannel === 'object') {
-        const ch = resumeData.playerState.currentChannel
-        if (ch.url) {
-          setTimeout(() => {
-            playChannelRef.current(ch)
-          }, 500)
-        }
-      }
-    }
-  }, [resumeData, resumeLoading])
-
-  // ============================================================
-  // Load a saved playlist when query resolves
-  // ============================================================
-
-  useEffect(() => {
-    if (!loadPlaylistId || !loadedPlaylist) return
-    setChannels(loadedPlaylist.channels)
-    setGroups(loadedPlaylist.groups || [])
+    if (!loadPlaylistId) return
+    const pl = localPlaylists.find(p => p.id === loadPlaylistId)
+    if (!pl || !pl.channels) return
+    setChannels(pl.channels)
+    setGroups(pl.groups || [])
     setSelectedGroup('all')
-    setPlaylistUrl(loadedPlaylist.url)
+    setPlaylistUrl(pl.url)
     setCurrentChannel(null)
     setIsPlaying(false)
     setPlayerError('')
     destroyHls()
-    toast.success(`${loadedPlaylist.channels.length} canales cargados desde guardado`)
-    debouncedSaveState({ playlistUrl: loadedPlaylist.url })
+    toast.success(`${pl.channels.length} canales cargados desde guardado`)
+    debouncedSaveState({ playlistUrl: pl.url })
     setLoadPlaylistId(null)
-  }, [loadPlaylistId, loadedPlaylist, destroyHls, debouncedSaveState])
+  }, [loadPlaylistId, localPlaylists, destroyHls, debouncedSaveState])
 
   // ============================================================
   // Cleanup on unmount
@@ -356,12 +470,17 @@ export function IptvPlayer() {
       streamUrl.includes('.flv') ||
       streamUrl.includes('.mov')
 
-    addHistoryMutation.mutate({
+    // Save to localStorage history
+    const newHistEntry: LocalHistory = {
       channelName: channel.name,
       channelUrl: channel.url,
       channelLogo: channel.logo,
       channelGroup: channel.group || '',
-    })
+      watchedAt: new Date().toISOString(),
+    }
+    const updatedHistory = [newHistEntry, ...localHistory.filter(h => h.channelUrl !== channel.url)].slice(0, 100)
+    setLocalHistory(updatedHistory)
+    saveToStorage(HIST_KEY, updatedHistory)
 
     debouncedSaveState({ currentChannel: channel as CurrentChannel })
 
@@ -528,7 +647,7 @@ export function IptvPlayer() {
     } else {
       tryDirectHLS()
     }
-  }, [destroyHls, clearLoadingTimeout, addHistoryMutation, debouncedSaveState])
+  }, [destroyHls, clearLoadingTimeout, debouncedSaveState])
 
   // Ref for playChannel so resume can call it
   const playChannelRef = useRef(playChannel)
@@ -553,40 +672,65 @@ export function IptvPlayer() {
     destroyHls()
 
     try {
-      const res = await apiFetch('/api/iptv/playlist', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: playlistUrl.trim() }),
-      })
-      const data = await res.json()
+      // Fetch M3U DIRECTLY from the client (no Vercel API needed)
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 30000)
 
-      if (data.error) {
-        toast.error(data.error)
+      const response = await fetch(playlistUrl.trim(), {
+        signal: controller.signal,
+        headers: STB_HEADERS,
+        redirect: 'follow',
+      })
+      clearTimeout(timeoutId)
+
+      if (!response.ok) {
+        toast.error(`Error del servidor: ${response.status} ${response.statusText}`)
         return
       }
 
-      const allChannels: Channel[] = data.channels || []
-      const allGroups: string[] = data.groups || []
+      const text = await response.text()
+      const { channels: allChannels, groups: allGroups } = parseM3U(text)
+
+      if (allChannels.length === 0) {
+        if (text.includes('#EXT-X-')) {
+          toast.error('Esta URL es un stream HLS, no una lista de canales.')
+        } else {
+          toast.error('No se encontraron canales en la lista. Verifica que la URL sea correcta.')
+        }
+        return
+      }
+
       setGroups(allGroups)
       setSelectedGroup('all')
       setChannels(allChannels)
+      toast.success(`${allChannels.length} canales cargados`)
 
-      toast.success(`${data.total} canales cargados`)
-
-      savePlaylistMutation.mutate({
+      // Save to localStorage
+      const newPl: LocalPlaylist = {
+        id: crypto.randomUUID(),
         url: playlistUrl.trim(),
+        name: playlistUrl.trim().replace(/^https?:\/\//, '').split('/')[0],
+        channelCount: allChannels.length,
         channels: allChannels,
         groups: allGroups,
-      })
+        accessedAt: new Date().toISOString(),
+      }
+      const updatedPlaylists = [newPl, ...localPlaylists.filter(p => p.url !== playlistUrl.trim())].slice(0, 10)
+      setLocalPlaylists(updatedPlaylists)
+      saveToStorage(PL_KEY, updatedPlaylists)
 
       debouncedSaveState({ playlistUrl: playlistUrl.trim() })
 
-    } catch {
-      toast.error('Error al cargar la lista')
+    } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        toast.error('La lista tardó demasiado en responder.')
+      } else {
+        toast.error('No se pudo conectar al servidor de la lista')
+      }
     } finally {
       setIsLoading(false)
     }
-  }, [playlistUrl, destroyHls, savePlaylistMutation, debouncedSaveState])
+  }, [playlistUrl, destroyHls, localPlaylists, debouncedSaveState])
 
   // ============================================================
   // Delete a saved playlist
@@ -594,9 +738,11 @@ export function IptvPlayer() {
 
   const handleDeletePlaylist = useCallback((id: string, e: React.MouseEvent) => {
     e.stopPropagation()
-    deletePlaylistMutation.mutate(id)
+    const updated = localPlaylists.filter(p => p.id !== id)
+    setLocalPlaylists(updated)
+    saveToStorage(PL_KEY, updated)
     toast.success('Lista eliminada')
-  }, [deletePlaylistMutation])
+  }, [localPlaylists])
 
   // ============================================================
   // Toggle favorite
@@ -604,20 +750,25 @@ export function IptvPlayer() {
 
   const toggleFavorite = useCallback((channel: { name: string; url: string; logo: string; group?: string }, e: React.MouseEvent) => {
     e.stopPropagation()
-    const isFav = favorites.some(f => f.channelUrl === channel.url)
+    const isFav = localFavorites.some(f => f.channelUrl === channel.url)
     if (isFav) {
-      removeFavoriteMutation.mutate({ channelUrl: channel.url })
+      const updated = localFavorites.filter(f => f.channelUrl !== channel.url)
+      setLocalFavorites(updated)
+      saveToStorage(FAV_KEY, updated)
       toast.success('Eliminado de favoritos')
     } else {
-      addFavoriteMutation.mutate({
+      const newFav: LocalFavorite = {
         channelName: channel.name,
         channelUrl: channel.url,
         channelLogo: channel.logo,
         channelGroup: channel.group || '',
-      } as AddFavoriteInput)
+      }
+      const updated = [...localFavorites, newFav]
+      setLocalFavorites(updated)
+      saveToStorage(FAV_KEY, updated)
       toast.success('Agregado a favoritos')
     }
-  }, [favorites, addFavoriteMutation, removeFavoriteMutation])
+  }, [localFavorites])
 
   // ============================================================
   // Player controls
@@ -672,8 +823,8 @@ export function IptvPlayer() {
       }
       // Lock landscape on Android
       try {
-        if (screen.orientation && screen.orientation.lock) {
-          await screen.orientation.lock('landscape')
+        if (screen.orientation && (screen.orientation as any).lock) {
+          await (screen.orientation as any).lock('landscape')
         }
       } catch {
         // orientation lock not supported or not allowed
@@ -760,24 +911,24 @@ export function IptvPlayer() {
   // ============================================================
 
   const favoriteChannels = useMemo(() => {
-    return favorites.map(f => ({
+    return localFavorites.map(f => ({
       name: f.channelName,
       url: f.channelUrl,
       logo: f.channelLogo,
       group: f.channelGroup,
       tvgId: '',
     }))
-  }, [favorites])
+  }, [localFavorites])
 
   const recentChannels = useMemo(() => {
-    return history.map(h => ({
+    return localHistory.map(h => ({
       name: h.channelName,
       url: h.channelUrl,
       logo: h.channelLogo,
       group: h.channelGroup,
       tvgId: '',
     }))
-  }, [history])
+  }, [localHistory])
 
   const filteredChannels = useMemo(() => {
     if (selectedGroup === GROUP_FAVORITES) {

