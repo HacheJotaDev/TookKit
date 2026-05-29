@@ -1,16 +1,13 @@
 
 import { NextRequest } from 'next/server'
 
-// Provider base URLs
 const PROVIDER_BASE_URLS: Record<string, string> = {
   'mail.tm': 'https://api.mail.tm',
   'mail.gw': 'https://api.mail.gw',
 }
 
 function getBaseUrl(provider?: string | null): string {
-  if (provider && PROVIDER_BASE_URLS[provider]) {
-    return PROVIDER_BASE_URLS[provider]
-  }
+  if (provider && PROVIDER_BASE_URLS[provider]) return PROVIDER_BASE_URLS[provider]
   return 'https://api.mail.tm'
 }
 
@@ -18,11 +15,7 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutM
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
   try {
-    const response = await fetch(url, {
-      ...options,
-      signal: controller.signal,
-    })
-    return response
+    return await fetch(url, { ...options, signal: controller.signal })
   } finally {
     clearTimeout(timeoutId)
   }
@@ -62,7 +55,6 @@ export async function GET(
       }
 
       const data = await response.json()
-
       return new Response(JSON.stringify(data), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },

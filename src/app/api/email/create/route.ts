@@ -1,10 +1,9 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 
-// ─── Mail.tm API ───────────────────────────────────────────
-// API docs: https://docs.mail.tm
+// ─── Mail.tm / Mail.gw API ────────────────────────────────
 // Flow: GET /domains → POST /accounts → POST /token
-// IMPORTANT: Must use Accept: application/ld+json for proper Hydra response format
+// Use Accept: application/ld+json (Hydra format with hydra:member)
 
 const MAIL_PROVIDERS = [
   { name: 'mail.tm', baseUrl: 'https://api.mail.tm' },
@@ -16,7 +15,7 @@ const API_HEADERS: Record<string, string> = {
   'Content-Type': 'application/json',
 }
 
-// ─── In-memory domain cache ─────────────────────────────────
+// ─── Domain cache ──────────────────────────────────────────
 
 interface CachedDomain {
   domain: string
@@ -25,9 +24,9 @@ interface CachedDomain {
 }
 
 let domainCache: CachedDomain | null = null
-const CACHE_TTL_MS = 30 * 60 * 1000 // 30 minutes
+const CACHE_TTL_MS = 30 * 60 * 1000
 
-// ─── Provider health tracking ──────────────────────────────
+// ─── Provider health ──────────────────────────────────────
 
 interface ProviderHealth {
   consecutiveFailures: number
@@ -36,48 +35,39 @@ interface ProviderHealth {
 
 const providerHealth: Record<string, ProviderHealth> = {}
 
-function isProviderHealthy(providerName: string): boolean {
-  const health = providerHealth[providerName]
-  if (!health || health.consecutiveFailures === 0) return true
-  if (health.consecutiveFailures >= 3 && Date.now() - health.lastFailAt < 3 * 60 * 1000) {
-    return false
-  }
+function isProviderHealthy(name: string): boolean {
+  const h = providerHealth[name]
+  if (!h || h.consecutiveFailures === 0) return true
+  if (h.consecutiveFailures >= 3 && Date.now() - h.lastFailAt < 5 * 60 * 1000) return false
   return true
 }
 
-function markProviderSuccess(providerName: string) {
-  providerHealth[providerName] = { consecutiveFailures: 0, lastFailAt: 0 }
+function markSuccess(name: string) {
+  providerHealth[name] = { consecutiveFailures: 0, lastFailAt: 0 }
 }
 
-function markProviderFailure(providerName: string) {
-  const health = providerHealth[providerName] || { consecutiveFailures: 0, lastFailAt: 0 }
-  health.consecutiveFailures++
-  health.lastFailAt = Date.now()
-  providerHealth[providerName] = health
+function markFailure(name: string) {
+  const h = providerHealth[name] || { consecutiveFailures: 0, lastFailAt: 0 }
+  h.consecutiveFailures++
+  h.lastFailAt = Date.now()
+  providerHealth[name] = h
 }
 
-// ─── Fetch with timeout ─────────────────────────────────────
+// ─── Fetch with timeout ────────────────────────────────────
 
 async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 15000): Promise<Response> {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
   try {
-    const response = await fetch(url, {
-      ...options,
-      signal: controller.signal,
-    })
-    return response
+    return await fetch(url, { ...options, signal: controller.signal })
   } finally {
     clearTimeout(timeoutId)
   }
 }
 
-// ─── Extract domains from API response ─────────────────────
-// The mail.tm API returns different formats depending on Accept header:
-// - application/ld+json → { hydra:member: [...] } (PREFERRED)
-// - application/json    → [ ... ] (array, less reliable)
+// ─── Extract domains from either response format ──────────
 
-function extractDomainsFromResponse(data: unknown): { domain: string; isActive: boolean }[] {
+function extractDomains(data: unknown): { domain: string; isActive: boolean }[] {
   if (Array.isArray(data)) {
     return data.map((d: Record<string, unknown>) => ({
       domain: String(d.domain || ''),
@@ -85,8 +75,7 @@ function extractDomainsFromResponse(data: unknown): { domain: string; isActive: 
     }))
   }
   if (data && typeof data === 'object') {
-    const obj = data as Record<string, unknown>
-    const members = obj['hydra:member']
+    const members = (data as Record<string, unknown>)['hydra:member']
     if (Array.isArray(members)) {
       return members.map((d: Record<string, unknown>) => ({
         domain: String(d.domain || ''),
@@ -97,7 +86,7 @@ function extractDomainsFromResponse(data: unknown): { domain: string; isActive: 
   return []
 }
 
-// ─── Domain fetching with fallbacks ─────────────────────────
+// ─── Domain fetching ──────────────────────────────────────
 
 interface DomainResult {
   domain: string
@@ -105,161 +94,209 @@ interface DomainResult {
 }
 
 async function fetchAvailableDomain(): Promise<DomainResult> {
-  const allErrors: string[] = []
-  const healthyProviders = MAIL_PROVIDERS.filter(p => isProviderHealthy(p.name))
-  const providersToTry = healthyProviders.length > 0 ? healthyProviders : MAIL_PROVIDERS
+  const healthy = MAIL_PROVIDERS.filter(p => isProviderHealthy(p.name))
+  const toTry = healthy.length > 0 ? healthy : MAIL_PROVIDERS
 
-  for (const provider of providersToTry) {
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        const domainsRes = await fetchWithTimeout(`${provider.baseUrl}/domains`, {
-          headers: { Accept: 'application/ld+json' },
-        })
+  for (const provider of toTry) {
+    try {
+      const res = await fetchWithTimeout(`${provider.baseUrl}/domains`, {
+        headers: { Accept: 'application/ld+json' },
+      })
 
-        if (domainsRes.ok) {
-          const domainsData = await domainsRes.json()
-          const domains = extractDomainsFromResponse(domainsData)
-
-          const activeDomains = domains.filter(d => d.isActive && d.domain)
-          if (activeDomains.length > 0) {
-            const domain = activeDomains[0].domain
-            domainCache = { domain, provider, cachedAt: Date.now() }
-            markProviderSuccess(provider.name)
-            return { domain, provider }
-          }
-          allErrors.push(`${provider.name}: No hay dominios activos`)
-          markProviderFailure(provider.name)
-        } else {
-          allErrors.push(`${provider.name}: HTTP ${domainsRes.status}`)
-          markProviderFailure(provider.name)
+      if (res.ok) {
+        const data = await res.json()
+        const domains = extractDomains(data)
+        const active = domains.filter(d => d.isActive && d.domain)
+        if (active.length > 0) {
+          const domain = active[0].domain
+          domainCache = { domain, provider, cachedAt: Date.now() }
+          markSuccess(provider.name)
+          return { domain, provider }
         }
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : 'Network error'
-        allErrors.push(`${provider.name}: ${msg}`)
-        markProviderFailure(provider.name)
       }
-
-      if (attempt < 1) await new Promise(r => setTimeout(r, 1500))
+      markFailure(provider.name)
+    } catch {
+      markFailure(provider.name)
     }
   }
 
-  // Fallback 1: use cached domain
+  // Fallback: cached domain
   if (domainCache && Date.now() - domainCache.cachedAt < CACHE_TTL_MS) {
     return { domain: domainCache.domain, provider: domainCache.provider }
   }
 
-  // Fallback 2: hardcoded known domain (last resort)
+  // Fallback: hardcoded known domain
   return { domain: 'wshu.net', provider: { name: 'mail.tm', baseUrl: 'https://api.mail.tm' } }
 }
 
-// ─── POST: Create email account ─────────────────────────────
+// ─── Create account with retry + provider fallback ────────
+
+interface AccountResult {
+  address: string
+  token: string
+  id: string
+  provider: string
+}
+
+async function createAccountOnProvider(
+  baseUrl: string,
+  providerName: string,
+): Promise<AccountResult> {
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
+  let username = ''
+  for (let i = 0; i < 10; i++) {
+    username += chars[Math.floor(Math.random() * chars.length)]
+  }
+
+  // Get fresh domain for this provider
+  const domainRes = await fetchWithTimeout(`${baseUrl}/domains`, {
+    headers: { Accept: 'application/ld+json' },
+  })
+
+  let domain = ''
+  if (domainRes.ok) {
+    const data = await domainRes.json()
+    const domains = extractDomains(data)
+    const active = domains.filter(d => d.isActive && d.domain)
+    if (active.length > 0) domain = active[0].domain
+  }
+
+  // Fallback to cached or hardcoded
+  if (!domain && domainCache) domain = domainCache.domain
+  if (!domain) domain = 'wshu.net'
+
+  const address = `${username}@${domain}`
+  const password = 'Tp' + Array.from({ length: 12 }, () =>
+    'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'[Math.floor(Math.random() * 62)]
+  ).join('') + '!1'
+
+  // POST /accounts with retry on rate-limit or server error
+  let accountData: Record<string, unknown> | null = null
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const createRes = await fetchWithTimeout(`${baseUrl}/accounts`, {
+      method: 'POST',
+      headers: API_HEADERS,
+      body: JSON.stringify({ address, password }),
+    })
+
+    if (createRes.ok) {
+      accountData = await createRes.json()
+      break
+    }
+
+    const status = createRes.status
+    // 422 = validation error (bad address format) — don't retry, it won't change
+    if (status === 422) {
+      const errText = await createRes.text()
+      throw new Error(`Dirección inválida (${status}): ${errText}`)
+    }
+
+    // 429 = rate limited, 500/502/503 = server error — retry with backoff
+    if (status === 429 || status >= 500) {
+      if (attempt < 2) {
+        await new Promise(r => setTimeout(r, 2000 * (attempt + 1)))
+        continue
+      }
+      const errText = await createRes.text()
+      throw new Error(`Servidor ${providerName} no disponible (${status}). Intenta de nuevo en unos segundos.`)
+    }
+
+    // Other errors
+    const errText = await createRes.text()
+    throw new Error(`Error al crear cuenta en ${providerName} (${status}): ${errText}`)
+  }
+
+  if (!accountData) {
+    throw new Error('No se pudo crear la cuenta después de varios intentos.')
+  }
+
+  const accountId = String(accountData.id || (accountData['@id'] as string)?.split('/')?.pop() || '')
+
+  // POST /token with retry
+  let token = ''
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const tokenRes = await fetchWithTimeout(`${baseUrl}/token`, {
+      method: 'POST',
+      headers: API_HEADERS,
+      body: JSON.stringify({ address, password }),
+    })
+
+    if (tokenRes.ok) {
+      const tokenData = await tokenRes.json()
+      token = tokenData.token || tokenData['hydra:member']?.token || ''
+      if (token) break
+    }
+
+    if (attempt < 2) {
+      await new Promise(r => setTimeout(r, 1500 * (attempt + 1)))
+    }
+  }
+
+  if (!token) {
+    throw new Error('No se pudo obtener el token de acceso. Intenta de nuevo.')
+  }
+
+  return { address, token, id: accountId, provider: providerName }
+}
+
+// ─── POST handler ─────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
   try {
-    // Step 1: Get available domain
-    let domainResult: DomainResult
-    try {
-      domainResult = await fetchAvailableDomain()
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Error desconocido'
-      return NextResponse.json({ error: msg })
-    }
+    // Step 1: Find a working provider+domain
+    const { domain, provider } = await fetchAvailableDomain()
 
-    const { domain, provider } = domainResult
-    const baseUrl = provider.baseUrl
+    // Step 2: Try creating account on the primary provider
+    // If it fails, try ALL other providers as fallback
+    const providersToTry = [provider, ...MAIL_PROVIDERS.filter(p => p.name !== provider.name)]
+    const errors: string[] = []
 
-    // Step 2: Generate random email address
-    // mail.tm requires: alphanumeric username, 1-64 chars, valid domain
-    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
-    let randomName = ''
-    for (let i = 0; i < 10; i++) {
-      randomName += chars[Math.floor(Math.random() * chars.length)]
-    }
-    const address = `${randomName}@${domain}`
-    const password = 'Tp' + Array.from({ length: 12 }, () =>
-      'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'[Math.floor(Math.random() * 62)]
-    ).join('') + '!1'
-
-    // Step 3: Create the account via POST /accounts
-    let createRes: Response | null = null
-    try {
-      createRes = await fetchWithTimeout(`${baseUrl}/accounts`, {
-        method: 'POST',
-        headers: API_HEADERS,
-        body: JSON.stringify({ address, password }),
-      })
-    } catch {
-      return NextResponse.json({ error: 'Error de conexión al crear la cuenta. Intenta de nuevo.' })
-    }
-
-    if (!createRes.ok) {
-      const errorText = await createRes.text()
-      return NextResponse.json({
-        error: `Error al crear cuenta (${createRes.status}). Intenta de nuevo.`,
-        details: errorText,
-      })
-    }
-
-    const accountData = await createRes.json()
-    const accountId = accountData.id || accountData['@id']?.split('/')?.pop()
-
-    // Step 4: Get JWT token via POST /token
-    let tokenRes: Response | null = null
-    try {
-      tokenRes = await fetchWithTimeout(`${baseUrl}/token`, {
-        method: 'POST',
-        headers: API_HEADERS,
-        body: JSON.stringify({ address, password }),
-      })
-    } catch {
-      return NextResponse.json({ error: 'Error de conexión al obtener el token. Intenta de nuevo.' })
-    }
-
-    if (!tokenRes.ok) {
-      return NextResponse.json({ error: 'Error al obtener el token de acceso' })
-    }
-
-    const tokenData = await tokenRes.json()
-    const token = tokenData.token || tokenData['hydra:member']?.token
-
-    if (!token) {
-      return NextResponse.json({ error: 'No se pudo obtener el token de acceso' })
-    }
-
-    // Step 5: Save to database for session persistence
-    const sessionId = req.headers.get('x-session-id')
-    if (sessionId) {
+    for (const prov of providersToTry) {
       try {
-        const { prisma, hasDatabaseUrl } = await import('@/lib/prisma')
-        if (hasDatabaseUrl) {
-          const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-          await prisma.session.upsert({
-            where: { id: sessionId },
-            update: { lastSeen: new Date(), expiresAt },
-            create: { id: sessionId, expiresAt },
-          })
+        const result = await createAccountOnProvider(prov.baseUrl, prov.name)
+        markSuccess(prov.name)
 
-          await prisma.tempEmail.create({
-            data: {
-              sessionId,
-              address,
-              token,
-              accountId: accountId || '',
-              provider: provider.name,
-              expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-            },
-          })
+        // Step 3: Save to database
+        const sessionId = req.headers.get('x-session-id')
+        if (sessionId) {
+          try {
+            const { prisma, hasDatabaseUrl } = await import('@/lib/prisma')
+            if (hasDatabaseUrl) {
+              const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+              await prisma.session.upsert({
+                where: { id: sessionId },
+                update: { lastSeen: new Date(), expiresAt },
+                create: { id: sessionId, expiresAt },
+              })
+              await prisma.tempEmail.create({
+                data: {
+                  sessionId,
+                  address: result.address,
+                  token: result.token,
+                  accountId: result.id,
+                  provider: result.provider,
+                  expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+                },
+              })
+            }
+          } catch {
+            // DB save is non-critical
+          }
         }
-      } catch {
-        // DB save is non-critical
+
+        return NextResponse.json(result)
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Error desconocido'
+        errors.push(msg)
+        markFailure(prov.name)
       }
     }
 
+    // All providers failed
     return NextResponse.json({
-      address,
-      token,
-      id: accountId,
-      provider: provider.name,
+      error: errors.length === 1
+        ? errors[0]
+        : `No se pudo crear el correo. Errores: ${errors.join(' | ')}`,
     })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error'

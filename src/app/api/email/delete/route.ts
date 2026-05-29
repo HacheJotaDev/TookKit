@@ -1,16 +1,13 @@
 
 import { NextRequest } from 'next/server'
 
-// Provider base URLs
 const PROVIDER_BASE_URLS: Record<string, string> = {
   'mail.tm': 'https://api.mail.tm',
   'mail.gw': 'https://api.mail.gw',
 }
 
 function getBaseUrl(provider?: string | null): string {
-  if (provider && PROVIDER_BASE_URLS[provider]) {
-    return PROVIDER_BASE_URLS[provider]
-  }
+  if (provider && PROVIDER_BASE_URLS[provider]) return PROVIDER_BASE_URLS[provider]
   return 'https://api.mail.tm'
 }
 
@@ -18,11 +15,7 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutM
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
   try {
-    const response = await fetch(url, {
-      ...options,
-      signal: controller.signal,
-    })
-    return response
+    return await fetch(url, { ...options, signal: controller.signal })
   } finally {
     clearTimeout(timeoutId)
   }
@@ -50,14 +43,15 @@ export async function DELETE(req: NextRequest) {
         },
       })
 
-      // 204 No Content is the expected success response
-      if (!response.ok && response.status !== 204) {
-        if (response.status === 404) {
-          return new Response(JSON.stringify({ success: true }), {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-          })
-        }
+      // 204 = success, 404 = already deleted
+      if (response.status === 204 || response.status === 404) {
+        return new Response(JSON.stringify({ success: true }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+
+      if (!response.ok) {
         return new Response(JSON.stringify({ error: 'Failed to delete account' }), {
           status: response.status,
           headers: { 'Content-Type': 'application/json' },
