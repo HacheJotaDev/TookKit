@@ -51,6 +51,54 @@ interface EmailMessage {
   intro?: string
 }
 
+// ─── Direct mail.tm API client (bypasses Vercel proxy) ────
+// mail.tm allows CORS from any origin (access-control-allow-origin: *)
+// Calling directly avoids Vercel's IP-based rate limiting issues
+
+const MAIL_TM_BASE = 'https://api.mail.tm'
+const MAIL_PROVIDERS = [
+  { name: 'mail.tm', baseUrl: 'https://api.mail.tm' },
+  { name: 'mail.gw', baseUrl: 'https://api.mail.gw' },
+]
+
+async function mailFetch(path: string, options: RequestInit = {}, provider?: string): Promise<Response> {
+  const baseUrl = provider && provider !== 'mail.tm'
+    ? MAIL_PROVIDERS.find(p => p.name === provider)?.baseUrl || MAIL_TM_BASE
+    : MAIL_TM_BASE
+  return fetch(`${baseUrl}${path}`, {
+    ...options,
+    headers: {
+      'Accept': 'application/ld+json',
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  })
+}
+
+async function getAvailableDomain(): Promise<{ domain: string; provider: string }> {
+  for (const prov of MAIL_PROVIDERS) {
+    try {
+      const res = await fetch(`${prov.baseUrl}/domains`, {
+        headers: { Accept: 'application/ld+json' },
+      })
+      if (res.ok) {
+        const data = await res.json()
+        const members = data['hydra:member'] || data
+        if (Array.isArray(members)) {
+          const active = members.filter((d: Record<string, unknown>) => d.isActive !== false && d.domain)
+          if (active.length > 0) {
+            return { domain: active[0].domain as string, provider: prov.name }
+          }
+        }
+      }
+    } catch {
+      // Try next provider
+    }
+  }
+  // Hardcoded fallback
+  return { domain: 'wshu.net', provider: 'mail.tm' }
+}
+
 // ============================================================
 // UTILITY: Debounce hook
 // ============================================================
@@ -708,22 +756,108 @@ function EmailTab() {
   const createEmail = useCallback(async () => {
     setIsCreating(true)
     setTokenExpired(false)
-    try {
-      const res = await apiFetch('/api/email/create', { method: 'POST' })
-      const data = await res.json()
 
-      if (data.error) {
-        toast.error(data.error)
+    try {
+      // ── DIRECT to mail.tm (bypasses Vercel) ──
+      // mail.tm has CORS: access-control-allow-origin: *
+      // Step 1: Get available domain
+      const { domain, provider } = await getAvailableDomain()
+      const baseUrl = provider === 'mail.gw' ? 'https://api.mail.gw' : 'https://api.mail.tm'
+
+      // Step 2: Generate random email address
+      const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
+      let username = ''
+      for (let i = 0; i < 10; i++) {
+        username += chars[Math.floor(Math.random() * chars.length)]
+      }
+      const address = `${username}@${domain}`
+      const password = 'Tp' + Array.from({ length: 12 }, () =>
+        'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'[Math.floor(Math.random() * 62)]
+      ).join('') + '!1'
+
+      // Step 3: Create account (with retry)
+      let accountData: Record<string, unknown> | null = null
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const createRes = await fetch(`${baseUrl}/accounts`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/ld+json' },
+          body: JSON.stringify({ address, password }),
+        })
+
+        if (createRes.ok) {
+          accountData = await createRes.json()
+          break
+        }
+
+        // 422 = bad address, don't retry
+        if (createRes.status === 422) {
+          toast.error('Error al crear cuenta. Intentando de nuevo...')
+          // Try with a different username
+          username = ''
+          for (let i = 0; i < 10; i++) {
+            username += chars[Math.floor(Math.random() * chars.length)]
+          }
+          continue
+        }
+
+        // 429/5xx = rate limit or server error, retry with backoff
+        if (attempt < 2) {
+          await new Promise(r => setTimeout(r, 2000 * (attempt + 1)))
+        }
+      }
+
+      if (!accountData) {
+        toast.error('No se pudo crear la cuenta. Intenta de nuevo.')
         return
       }
 
-      const newAccount = { address: data.address, token: data.token, id: data.id, provider: data.provider || 'mail.tm' }
+      const accountId = String(accountData.id || '')
+
+      // Step 4: Get JWT token
+      let token = ''
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const tokenRes = await fetch(`${baseUrl}/token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/ld+json' },
+          body: JSON.stringify({ address, password }),
+        })
+
+        if (tokenRes.ok) {
+          const tokenData = await tokenRes.json()
+          token = tokenData.token || ''
+          if (token) break
+        }
+
+        if (attempt < 2) {
+          await new Promise(r => setTimeout(r, 1500 * (attempt + 1)))
+        }
+      }
+
+      if (!token) {
+        toast.error('No se pudo obtener el token. Intenta de nuevo.')
+        return
+      }
+
+      const newAccount: EmailAccount = {
+        address,
+        token,
+        id: accountId,
+        provider,
+      }
       setAccount(newAccount)
       setMessages([])
       setSelectedMsg(null)
       toast.success('Correo temporal creado')
+
+      // Save to server DB in background (non-blocking)
+      apiFetch('/api/email/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address, token, id: accountId, provider }),
+      }).catch(() => {})
+
     } catch {
-      toast.error('Error al crear correo')
+      toast.error('Error al crear correo. Verifica tu conexión.')
     } finally {
       setIsCreating(false)
     }
@@ -735,8 +869,13 @@ function EmailTab() {
     if (!t) return
 
     try {
-      const res = await apiFetch(`/api/email/messages?provider=${encodeURIComponent(p)}`, {
-        headers: { Authorization: `Bearer ${t}`, 'X-Mail-Provider': p },
+      // ── DIRECT to mail.tm (bypasses Vercel) ──
+      const baseUrl = p === 'mail.gw' ? 'https://api.mail.gw' : 'https://api.mail.tm'
+      const res = await fetch(`${baseUrl}/messages`, {
+        headers: {
+          'Accept': 'application/ld+json',
+          'Authorization': `Bearer ${t}`,
+        },
       })
 
       if (res.status === 401) {
@@ -746,7 +885,6 @@ function EmailTab() {
       }
 
       const data = await res.json()
-
       if (data.error) return
 
       const msgs = data['hydra:member'] || data
@@ -761,8 +899,13 @@ function EmailTab() {
     setIsLoadingMsg(true)
 
     try {
-      const res = await apiFetch(`/api/email/messages/${msg.id}?provider=${encodeURIComponent(account.provider)}`, {
-        headers: { Authorization: `Bearer ${account.token}`, 'X-Mail-Provider': account.provider },
+      // ── DIRECT to mail.tm (bypasses Vercel) ──
+      const baseUrl = account.provider === 'mail.gw' ? 'https://api.mail.gw' : 'https://api.mail.tm'
+      const res = await fetch(`${baseUrl}/messages/${msg.id}`, {
+        headers: {
+          'Accept': 'application/ld+json',
+          'Authorization': `Bearer ${account.token}`,
+        },
       })
       const data = await res.json()
 
@@ -794,10 +937,14 @@ function EmailTab() {
     if (!account) return
 
     try {
-      await apiFetch('/api/email/delete', {
+      // ── DIRECT to mail.tm (bypasses Vercel) ──
+      const baseUrl = account.provider === 'mail.gw' ? 'https://api.mail.gw' : 'https://api.mail.tm'
+      await fetch(`${baseUrl}/accounts/${account.id}`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accountId: account.id, token: account.token, provider: account.provider }),
+        headers: {
+          'Accept': 'application/ld+json',
+          'Authorization': `Bearer ${account.token}`,
+        },
       })
 
       setAccount(null)
