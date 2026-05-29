@@ -18,7 +18,7 @@ interface HitInfo {
 }
 
 /**
- * Format hit information as a readable Telegram message.
+ * Format hit information as a Telegram message with fancy box design.
  */
 function formatHitMessage(hit: HitInfo): string {
   const info = hit.info || ({} as Record<string, unknown>)
@@ -32,21 +32,21 @@ function formatHitMessage(hit: HitInfo): string {
 
   const modeLabel = hit.inputMode === 'url' ? 'URL Mode' : 'Combo Mode'
 
-  return `👑 IPTV Hit [${modeLabel}]
-├ 🌐 Host: ${hit.host}
-├ 👤 User: ${hit.username}
-├ 🔑 Pass: ${hit.password}
-├ ✅ Status: ${status}
-├ 📶 Active: ${activeCons} / ${maxCons}
-├ ⏰ Creado: ${createdAt}
-├ 📅 Exp: ${expDate}
-├ 🕰️ TZ: ${timezone}
-└ 🔗 M3U: ${m3uUrl}`
+  return `╭───✦ ${modeLabel}
+├● Host: ${hit.host}
+├● User: ${hit.username}
+├● Pass: ${hit.password}
+├● Status: ${status}
+├● Active: ${activeCons} / ${maxCons}
+├● Created: ${createdAt}
+├● Exp: ${expDate}
+├● TZ: ${timezone}
+├● M3U: ${m3uUrl}
+╰───✦`
 }
 
 /**
  * Send a hit notification to Telegram silently (no sound, no alert).
- * Fire-and-forget: errors are logged but never thrown.
  */
 export async function sendHitToTelegram(hit: HitInfo): Promise<void> {
   try {
@@ -67,7 +67,6 @@ export async function sendHitToTelegram(hit: HitInfo): Promise<void> {
       console.error('[Telegram] Failed to send hit:', response.status, errorBody)
     }
   } catch (error) {
-    // Silently fail — never block the main IPTV checking flow
     console.error('[Telegram] Error sending hit:', error)
   }
 }

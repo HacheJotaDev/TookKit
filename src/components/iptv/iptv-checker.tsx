@@ -65,6 +65,16 @@ function formatDate(val: string | number | null | undefined): string {
   return String(val)
 }
 
+/**
+ * Format a single hit for clipboard — fancy box design
+ */
+function formatHitForCopy(r: IptvResult, index?: number): string {
+  const info = r.info
+  const m3uUrl = info?.m3u_url || r.url
+  const idx = index !== undefined ? ` #${index + 1}` : ''
+  return `╭───✦${idx}\n├● Host: ${r.host || 'N/A'}\n├● User: ${r.username}\n├● Pass: ${r.password}\n├● Status: ${info?.status || 'Active'}\n├● Active: ${info?.active_cons || '0'} / ${info?.max_connections || '0'}\n├● Created: ${info?.created_at || 'N/A'}\n├● Exp: ${info?.exp_date || 'N/A'}\n├● TZ: ${info?.timezone || 'N/A'}\n├● M3U: ${m3uUrl}\n╰───✦`
+}
+
 function timeAgo(dateStr: string): string {
   try {
     const diff = Date.now() - new Date(dateStr).getTime()
@@ -264,8 +274,7 @@ function HitCard({ r, index, isHistory }: { r: IptvResult; index: number; isHist
   const [showPass, setShowPass] = useState(false)
 
   const copyHit = () => {
-    const text = `User: ${r.username}\nPass: ${r.password}\nStatus: ${info?.status || 'Active'}\nActive: ${info?.active_cons || '0'} / ${info?.max_connections || '0'}\nExp: ${info?.exp_date || 'N/A'}\nM3U: ${m3uUrl}`
-    navigator.clipboard.writeText(text)
+    navigator.clipboard.writeText(formatHitForCopy(r))
     toast.success('Hit copiado')
   }
 
@@ -549,11 +558,7 @@ export function IptvChecker() {
       toast.error('No hay hits para guardar')
       return
     }
-    const text = hitResults.map((r, idx) => {
-      const info = r.info
-      const m3uUrl = info?.m3u_url || r.url
-      return `Hit #${idx + 1}\nUser: ${r.username}\nPass: ${r.password}\nStatus: ${info?.status || 'Active'}\nActive: ${info?.active_cons || '0'}\nMax: ${info?.max_connections || '0'}\nCreated: ${info?.created_at || 'N/A'}\nExp: ${info?.exp_date || 'N/A'}\nM3U: ${m3uUrl}\n`
-    }).join('\n---\n\n')
+    const text = hitResults.map((r, idx) => formatHitForCopy(r, idx)).join('\n\n')
 
     const blob = new Blob([text], { type: 'text/plain' })
     const url = URL.createObjectURL(blob)
@@ -742,11 +747,7 @@ export function IptvChecker() {
               </button>
               <button
                 onClick={() => {
-                  const text = hitResults.map((r, idx) => {
-                    const info = r.info
-                    const m3uUrl = info?.m3u_url || r.url
-                    return `Hit #${idx + 1}\nUser: ${r.username}\nPass: ${r.password}\nStatus: ${info?.status || 'Active'}\nActive: ${info?.active_cons || '0'}\nMax: ${info?.max_connections || '0'}\nExp: ${info?.exp_date || 'N/A'}\nM3U: ${m3uUrl}`
-                  }).join('\n\n')
+                  const text = hitResults.map((r, idx) => formatHitForCopy(r, idx)).join('\n\n')
                   navigator.clipboard.writeText(text)
                   toast.success(`${hitResults.length} hits copiados`)
                 }}
@@ -895,11 +896,7 @@ export function IptvChecker() {
               </div>
               <button
                 onClick={() => {
-                  const text = viewHitResults.map((r, idx) => {
-                    const info = r.info
-                    const m3uUrl = info?.m3u_url || r.url
-                    return `Hit #${idx + 1}\nUser: ${r.username}\nPass: ${r.password}\nStatus: ${info?.status || 'Active'}\nActive: ${info?.active_cons || '0'}\nMax: ${info?.max_connections || '0'}\nExp: ${info?.exp_date || 'N/A'}\nM3U: ${m3uUrl}`
-                  }).join('\n\n')
+                  const text = viewHitResults.map((r, idx) => formatHitForCopy(r, idx)).join('\n\n')
                   navigator.clipboard.writeText(text)
                   toast.success(`${viewHitResults.length} hits copiados`)
                 }}
