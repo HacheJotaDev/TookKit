@@ -1,81 +1,70 @@
+import { NextRequest, NextResponse } from 'next/server'
 
-import { NextRequest } from 'next/server'
-import { checkLine } from '@/lib/iptv-shared'
 /**
- * POST: Process a batch of lines synchronously.
- * Client-driven batch processing — the frontend sends N lines at a time,
- * we process them and return results immediately.
- * This is serverless-safe: no in-memory state, no background tasks.
+ * POST — Proxy a check request to an IPTV server.
+ * NO DATABASE NEEDED — this is just a CORS proxy.
+ * Body: { url: string, headers?: Record<string, string> }
  */
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { lines, inputMode, serverHost, threads } = body as {
-      lines: string[]
-      inputMode: 'url' | 'combo'
-      serverHost?: string
-      threads?: number
-    }
-
-    if (!lines || !Array.isArray(lines) || lines.length === 0) {
-      return new Response(JSON.stringify({ error: 'No lines provided' }), {
-        status: 400, headers: { 'Content-Type': 'application/json' },
-      })
-    }
-
-    const maxConcurrency = Math.min(threads || 5, 20)
-    const results: Array<{
+    const { url, headers: customHeaders } = body as {
       url: string
-      status: 'hit' | 'bad' | 'timeout'
-      host?: string
-      username?: string
-      password?: string
-      info?: Record<string, unknown>
-    }> = []
-    let hits = 0
-    let bad = 0
-    let timeout = 0
-
-    // Process lines in batches of maxConcurrency
-    for (let i = 0; i < lines.length; i += maxConcurrency) {
-      const batch = lines.slice(i, Math.min(i + maxConcurrency, lines.length))
-      const batchResults = await Promise.all(
-        batch.map(async (line) => {
-          const trimmedLine = line.trim()
-          if (!trimmedLine) return null
-
-          const result = await checkLine(trimmedLine, inputMode, serverHost || '')
-
-          return {
-            url: result.url || trimmedLine,
-            status: result.status as 'hit' | 'bad' | 'timeout',
-            host: result.host,
-            username: result.username,
-            password: result.password,
-            info: result.info,
-          }
-        })
-      )
-
-      for (const r of batchResults) {
-        if (!r) continue
-        results.push(r)
-        if (r.status === 'hit') hits++
-        else if (r.status === 'timeout') timeout++
-        else bad++
-      }
+      headers?: Record<string, string>
     }
 
-    return new Response(JSON.stringify({
-      results,
-      stats: { total: results.length, hits, bad, timeout },
-    }), {
-      status: 200, headers: { 'Content-Type': 'application/json' },
-    })
+    if (!url || typeof url !== 'string') {
+      return NextResponse.json({ error: 'URL is required' }, { status: 400 })
+    }
+
+    // Validate it looks like an IPTV API URL
+    if (!url.includes('/player_api.php') && !url.includes('/get.php') && !url.includes('/panel_api.php')) {
+      return NextResponse.json({ error: 'Invalid IPTV API URL' }, { status: 400 })
+    }
+
+    const STB_HEADERS: Record<string, string> = {
+      'Cookie': 'stb_lang=en; timezone=Europe%2FIstanbul;',
+      'X-User-Agent': 'Model: MAG254; Link: Ethernet',
+      'Connection': 'Keep-Alive',
+      'Accept-Encoding': 'gzip, deflate',
+      'Accept': 'application/json,application/javascript,text/javascript,text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'User-Agent': 'Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 4 rev: 2721 Mobile Safari/533.3',
+      ...(customHeaders || {}),
+    }
+
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 15000)
+
+    let response: Response
+    try {
+      response = await fetch(url, {
+        signal: controller.signal,
+        headers: STB_HEADERS,
+        redirect: 'follow',
+      })
+      clearTimeout(timeoutId)
+    } catch (err: unknown) {
+      clearTimeout(timeoutId)
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        return NextResponse.json({ status: 'timeout', error: 'Request timed out' })
+      }
+      return NextResponse.json({ status: 'bad', error: 'Connection failed' })
+    }
+
+    const text = await response.text()
+
+    // Try to parse as JSON
+    try {
+      const json = JSON.parse(text)
+      return NextResponse.json({ rawText: text, json, status: 'ok' })
+    } catch {
+      // Return as text
+      return NextResponse.json({ rawText: text, status: 'ok' })
+    }
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error'
-    return new Response(JSON.stringify({ error: message }), {
-      status: 500, headers: { 'Content-Type': 'application/json' },
-    })
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }
+
+export const dynamic = 'force-dynamic'
