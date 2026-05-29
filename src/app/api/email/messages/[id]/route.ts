@@ -11,7 +11,6 @@ function getBaseUrl(provider?: string | null): string {
   if (provider && PROVIDER_BASE_URLS[provider]) {
     return PROVIDER_BASE_URLS[provider]
   }
-  // Default to mail.tm if no provider specified
   return 'https://api.mail.tm'
 }
 
@@ -50,7 +49,7 @@ export async function GET(
     try {
       const response = await fetchWithTimeout(`${baseUrl}/messages/${id}`, {
         headers: {
-          'Accept': 'application/ld+json',
+          'Accept': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
       })
