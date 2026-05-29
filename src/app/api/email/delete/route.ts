@@ -1,5 +1,6 @@
 
 import { NextRequest } from 'next/server'
+
 // Provider base URLs
 const PROVIDER_BASE_URLS: Record<string, string> = {
   'mail.tm': 'https://api.mail.tm',
@@ -14,6 +15,20 @@ function getBaseUrl(provider?: string | null): string {
   return 'https://api.mail.tm'
 }
 
+async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 15000): Promise<Response> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    })
+    return response
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
+
 export async function DELETE(req: NextRequest) {
   try {
     const { accountId, token, provider } = await req.json()
@@ -26,19 +41,14 @@ export async function DELETE(req: NextRequest) {
     }
 
     const baseUrl = getBaseUrl(provider)
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 10000)
 
     try {
-      const response = await fetch(`${baseUrl}/accounts/${accountId}`, {
+      const response = await fetchWithTimeout(`${baseUrl}/accounts/${accountId}`, {
         method: 'DELETE',
-        signal: controller.signal,
         headers: {
           'Authorization': `Bearer ${token}`,
         },
       })
-
-      clearTimeout(timeoutId)
 
       // 204 No Content is the expected success response
       if (!response.ok && response.status !== 204) {
@@ -59,16 +69,16 @@ export async function DELETE(req: NextRequest) {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       })
-    } finally {
-      clearTimeout(timeoutId)
+    } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        return new Response(JSON.stringify({ error: 'Delete request timed out' }), {
+          status: 504,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      throw err
     }
   } catch (error: unknown) {
-    if (error instanceof DOMException && error.name === 'AbortError') {
-      return new Response(JSON.stringify({ error: 'Delete request timed out' }), {
-        status: 504,
-        headers: { 'Content-Type': 'application/json' },
-      })
-    }
     const message = error instanceof Error ? error.message : 'Unknown error'
     return new Response(JSON.stringify({ error: message }), {
       status: 500,

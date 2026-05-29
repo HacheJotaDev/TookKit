@@ -1,5 +1,6 @@
 
 import { NextRequest } from 'next/server'
+
 // Provider base URLs
 const PROVIDER_BASE_URLS: Record<string, string> = {
   'mail.tm': 'https://api.mail.tm',
@@ -12,6 +13,20 @@ function getBaseUrl(provider?: string | null): string {
   }
   // Default to mail.tm if no provider specified
   return 'https://api.mail.tm'
+}
+
+async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 15000): Promise<Response> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    })
+    return response
+  } finally {
+    clearTimeout(timeoutId)
+  }
 }
 
 export async function GET(req: NextRequest) {
@@ -27,19 +42,14 @@ export async function GET(req: NextRequest) {
     }
 
     const baseUrl = getBaseUrl(provider)
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 10000)
 
     try {
-      const response = await fetch(`${baseUrl}/messages`, {
-        signal: controller.signal,
+      const response = await fetchWithTimeout(`${baseUrl}/messages`, {
         headers: {
           'Accept': 'application/ld+json',
           'Authorization': `Bearer ${token}`,
         },
       })
-
-      clearTimeout(timeoutId)
 
       if (!response.ok) {
         return new Response(JSON.stringify({ error: 'Failed to fetch messages', status: response.status }), {
@@ -54,16 +64,16 @@ export async function GET(req: NextRequest) {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       })
-    } finally {
-      clearTimeout(timeoutId)
+    } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        return new Response(JSON.stringify({ error: 'Messages request timed out' }), {
+          status: 504,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      throw err
     }
   } catch (error: unknown) {
-    if (error instanceof DOMException && error.name === 'AbortError') {
-      return new Response(JSON.stringify({ error: 'Messages request timed out' }), {
-        status: 504,
-        headers: { 'Content-Type': 'application/json' },
-      })
-    }
     const message = error instanceof Error ? error.message : 'Unknown error'
     return new Response(JSON.stringify({ error: message }), {
       status: 500,

@@ -1,5 +1,6 @@
 
 import { NextRequest, NextResponse } from 'next/server'
+
 // Both providers share the same API format but are separate backends
 const MAIL_PROVIDERS = [
   { name: 'mail.tm', baseUrl: 'https://api.mail.tm' },
@@ -10,6 +11,18 @@ const MAIL_TM_HEADERS: Record<string, string> = {
   'Accept': 'application/ld+json',
   'Content-Type': 'application/json',
 }
+
+// ── In-memory domain cache ──────────────────────────────────
+// If the fresh domain fetch fails (e.g. transient 502),
+// we fall back to the last known-good domain+provider.
+interface CachedDomain {
+  domain: string
+  provider: { name: string; baseUrl: string }
+  cachedAt: number
+}
+
+let domainCache: CachedDomain | null = null
+const CACHE_TTL_MS = 30 * 60 * 1000 // 30 minutes
 
 async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 15000): Promise<Response> {
   const controller = new AbortController()
@@ -30,10 +43,45 @@ interface DomainResult {
   provider: { name: string; baseUrl: string }
 }
 
-async function fetchAvailableDomain(): Promise<DomainResult> {
-  let lastError: string = ''
+// ── Track recent provider failures to skip unhealthy ones ───
+interface ProviderHealth {
+  consecutiveFailures: number
+  lastFailAt: number
+}
 
-  for (const provider of MAIL_PROVIDERS) {
+const providerHealth: Record<string, ProviderHealth> = {}
+
+function isProviderHealthy(providerName: string): boolean {
+  const health = providerHealth[providerName]
+  if (!health || health.consecutiveFailures === 0) return true
+  // If it failed more than 5 times in a row, skip it for 5 minutes
+  if (health.consecutiveFailures >= 5 && Date.now() - health.lastFailAt < 5 * 60 * 1000) {
+    return false
+  }
+  // After 5 minutes cool-down, give it another try
+  return true
+}
+
+function markProviderSuccess(providerName: string) {
+  providerHealth[providerName] = { consecutiveFailures: 0, lastFailAt: 0 }
+}
+
+function markProviderFailure(providerName: string) {
+  const health = providerHealth[providerName] || { consecutiveFailures: 0, lastFailAt: 0 }
+  health.consecutiveFailures++
+  health.lastFailAt = Date.now()
+  providerHealth[providerName] = health
+}
+
+async function fetchAvailableDomain(): Promise<DomainResult> {
+  const allErrors: string[] = []
+  const healthyProviders = MAIL_PROVIDERS.filter(p => isProviderHealthy(p.name))
+
+  // If no providers are healthy, try them all anyway (last resort)
+  const providersToTry = healthyProviders.length > 0 ? healthyProviders : MAIL_PROVIDERS
+
+  for (const provider of providersToTry) {
+    // Up to 3 attempts per provider with exponential back-off
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         const domainsRes = await fetchWithTimeout(`${provider.baseUrl}/domains`, {
@@ -48,28 +96,45 @@ async function fetchAvailableDomain(): Promise<DomainResult> {
             const activeDomains = domains.filter((d: { isActive?: boolean }) => d.isActive !== false)
             if (activeDomains.length > 0) {
               const domain = activeDomains[Math.floor(Math.random() * activeDomains.length)].domain
+              // Cache the successful result
+              domainCache = { domain, provider, cachedAt: Date.now() }
+              markProviderSuccess(provider.name)
               return { domain, provider }
             }
           }
-          lastError = `${provider.name}: No hay dominios activos`
+          const errMsg = `${provider.name}: No hay dominios activos`
+          allErrors.push(errMsg)
+          markProviderFailure(provider.name)
         } else {
-          lastError = `${provider.name}: HTTP ${domainsRes.status}`
+          const errMsg = `${provider.name}: HTTP ${domainsRes.status}`
+          allErrors.push(errMsg)
+          markProviderFailure(provider.name)
         }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Network error'
-        lastError = `${provider.name}: ${msg}`
+        const errMsg = `${provider.name}: ${msg}`
+        allErrors.push(errMsg)
+        markProviderFailure(provider.name)
       }
 
-      if (attempt < 2) await new Promise(r => setTimeout(r, 800 * (attempt + 1)))
+      // Exponential back-off: 1s, 2s between attempts
+      if (attempt < 2) await new Promise(r => setTimeout(r, 1000 * (attempt + 1)))
     }
   }
 
-  throw new Error(`No se pudieron obtener los dominios (${lastError}). Intenta de nuevo en unos segundos.`)
+  // ── Fallback to cached domain if available ────────────────
+  if (domainCache && Date.now() - domainCache.cachedAt < CACHE_TTL_MS) {
+    return { domain: domainCache.domain, provider: domainCache.provider }
+  }
+
+  // Build a comprehensive error message showing all failures
+  const errorDetail = allErrors.length > 0 ? allErrors.join(' | ') : 'proveedores no disponibles'
+  throw new Error(`No se pudieron obtener los dominios (${errorDetail}). Intenta de nuevo en unos segundos.`)
 }
 
 export async function POST(req: NextRequest) {
   try {
-    // Step 1: Get available domains (tries all providers)
+    // Step 1: Get available domains (tries all providers, falls back to cache)
     let domainResult: DomainResult
     try {
       domainResult = await fetchAvailableDomain()
