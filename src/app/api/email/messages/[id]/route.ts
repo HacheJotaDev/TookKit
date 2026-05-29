@@ -49,7 +49,7 @@ export async function GET(
     try {
       const response = await fetchWithTimeout(`${baseUrl}/messages/${id}`, {
         headers: {
-          'Accept': 'application/json',
+          'Accept': 'application/ld+json',
           'Authorization': `Bearer ${token}`,
         },
       })

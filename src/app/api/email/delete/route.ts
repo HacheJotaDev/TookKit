@@ -45,13 +45,13 @@ export async function DELETE(req: NextRequest) {
       const response = await fetchWithTimeout(`${baseUrl}/accounts/${accountId}`, {
         method: 'DELETE',
         headers: {
+          'Accept': 'application/ld+json',
           'Authorization': `Bearer ${token}`,
         },
       })
 
       // 204 No Content is the expected success response
       if (!response.ok && response.status !== 204) {
-        // If 404, the account was already deleted — treat as success
         if (response.status === 404) {
           return new Response(JSON.stringify({ success: true }), {
             status: 200,

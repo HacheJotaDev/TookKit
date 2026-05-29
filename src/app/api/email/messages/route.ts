@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
     try {
       const response = await fetchWithTimeout(`${baseUrl}/messages`, {
         headers: {
-          'Accept': 'application/json',
+          'Accept': 'application/ld+json',
           'Authorization': `Bearer ${token}`,
         },
       })
