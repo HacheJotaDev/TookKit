@@ -3,15 +3,13 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  CreditCard, Search, Tv, Mail, Settings, Copy, Check, Play, Pause,
-  Volume2, VolumeX, Trash2, RefreshCw, ChevronDown, Info, Moon, Sun,
-  X, Loader2, Square, Send, ExternalLink, Zap, Globe, Upload, AlertTriangle,
+  CreditCard, Search, Tv, Mail, Settings, Copy, Check, Play,
+  Trash2, RefreshCw, ChevronDown, Info, Moon, Sun,
+  X, Loader2, Square, Send, ExternalLink, Zap, Upload, AlertTriangle,
   MessageCircle, Phone
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { List } from 'react-window'
 import { IptvChecker } from '@/components/iptv/iptv-checker'
-import { IptvPlayer } from '@/components/iptv/iptv-player'
 import { apiFetch } from '@/lib/api-config'
 
 // ============================================================
@@ -621,51 +619,14 @@ function CheckerTab() {
 }
 
 // ============================================================
-// TAB 3: IPTV CHECKER + PLAYER
+// TAB 3: IPTV CHECKER
 // ============================================================
 
 function IptvTab() {
-  const [subTab, setSubTab] = useState<'checker' | 'player'>('checker')
-
-  return (
-    <div className="space-y-4">
-      {/* Sub-tab selector */}
-      <div className="flex bg-[#111113] theme-card rounded-xl border border-white/[0.06] p-1">
-        <button
-          onClick={() => setSubTab('checker')}
-          className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${
-            subTab === 'checker' ? 'bg-amber-500 text-black' : 'text-white/50 theme-text-dim hover:text-white/70 theme-text-dim'
-          }`}
-        >
-          Checker
-        </button>
-        <button
-          onClick={() => setSubTab('player')}
-          className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${
-            subTab === 'player' ? 'bg-amber-500 text-black' : 'text-white/50 theme-text-dim hover:text-white/70 theme-text-dim'
-          }`}
-        >
-          Reproductor
-        </button>
-      </div>
-
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={subTab}
-          initial={{ opacity: 0, y: 5 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -5 }}
-          transition={{ duration: 0.15 }}
-        >
-          {subTab === 'checker' ? <IptvChecker /> : <IptvPlayer />}
-        </motion.div>
-      </AnimatePresence>
-    </div>
-  )
+  return <IptvChecker />
 }
 
 // IptvChecker moved to @/components/iptv/iptv-checker.tsx
-// IptvPlayer moved to @/components/iptv/iptv-player.tsx
 
 // ============================================================
 // TAB 4: TEMPORARY EMAIL — With persistence
@@ -1208,7 +1169,7 @@ function SettingsTab() {
         {[
           { icon: CreditCard, label: 'Generador de Tarjetas', desc: 'Genera con el Algoritmo Luhn' },
           { icon: Search, label: 'CCS Checker', desc: 'Verificación de ccs en tiempo real' },
-          { icon: Tv, label: 'IPTV Checker + Player', desc: 'Verificación y reproducción de iptv' },
+          { icon: Tv, label: 'IPTV Checker', desc: 'Verificación de líneas iptv' },
           { icon: Mail, label: 'Correo Temporal', desc: 'Genera un correo temporal' },
         ].map((feature, i) => (
           <div key={i} className="flex items-center gap-3 py-1">
@@ -1230,7 +1191,7 @@ function SettingsTab() {
           <h3 className="text-xs font-medium text-white/50 theme-text-dim uppercase tracking-wider">Acerca de</h3>
         </div>
         <p className="text-xs text-white/40 theme-text-dim leading-relaxed">
-          HJTools X v1.0 — Plataforma con Generador de Tarjetas, CCS Checker, IPTV Checker + Player y Correo Temporal, diseñada para verificación, streaming y utilidades inteligentes en tiempo real.
+          HJTools X v1.0 — Plataforma con Generador de Tarjetas, CCS Checker, IPTV Checker y Correo Temporal, diseñada para verificación y utilidades inteligentes en tiempo real.
         </p>
         <div className="flex items-center gap-2 pt-2">
           <Zap className="w-3 h-3 text-amber-500/40" />
