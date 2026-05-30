@@ -6,7 +6,7 @@ import {
   CreditCard, Search, Tv, Mail, Settings, Copy, Check, Play,
   Trash2, RefreshCw, ChevronDown, Info, Moon, Sun,
   X, Loader2, Square, Send, ExternalLink, Zap, Upload, AlertTriangle,
-  MessageCircle, Phone
+  MessageCircle, Phone, Download
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { IptvChecker } from '@/components/iptv/iptv-checker'
@@ -1218,6 +1218,17 @@ function SettingsTab() {
           </a>
         </div>
       </div>
+
+      {/* Download APK */}
+      <a
+        href="https://www.mediafire.com/file/2gsvk7962tqqonv/HJTools_X.apk/file"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center justify-center gap-2.5 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-xl py-3.5 text-sm transition-all shadow-lg shadow-amber-500/15"
+      >
+        <Download className="w-4.5 h-4.5" />
+        Descargar APK
+      </a>
     </div>
   )
 }
