@@ -6,7 +6,7 @@ import {
   CreditCard, Search, Tv, Mail, Settings, Copy, Check, Play,
   Trash2, RefreshCw, ChevronDown, Info, Moon, Sun,
   X, Loader2, Square, Send, ExternalLink, Zap, Upload, AlertTriangle,
-  MessageCircle, Phone, Download
+  MessageCircle, Phone, Share2
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { IptvChecker } from '@/components/iptv/iptv-checker'
@@ -1219,16 +1219,32 @@ function SettingsTab() {
         </div>
       </div>
 
-      {/* Download APK */}
-      <a
-        href="https://www.mediafire.com/file/2gsvk7962tqqonv/HJTools_X.apk/file"
-        target="_blank"
-        rel="noopener noreferrer"
+      {/* Share APK */}
+      <button
+        onClick={async () => {
+          const shareData = {
+            title: 'HJTools X',
+            text: 'Descarga HJTools X - La toolkit todo en uno',
+            url: 'https://www.mediafire.com/file/2gsvk7962tqqonv/HJTools_X.apk/file',
+          }
+          if (navigator.share) {
+            try {
+              await navigator.share(shareData)
+            } catch (err: unknown) {
+              if (err instanceof DOMException && err.name === 'AbortError') return
+              await navigator.clipboard.writeText(`${shareData.text}\n${shareData.url}`)
+              toast.success('Link copiado al portapapeles')
+            }
+          } else {
+            await navigator.clipboard.writeText(`${shareData.text}\n${shareData.url}`)
+            toast.success('Link copiado al portapapeles')
+          }
+        }}
         className="flex items-center justify-center gap-2.5 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-xl py-3.5 text-sm transition-all shadow-lg shadow-amber-500/15"
       >
-        <Download className="w-4.5 h-4.5" />
-        Descargar APK
-      </a>
+        <Share2 className="w-4.5 h-4.5" />
+        Compartir APK
+      </button>
     </div>
   )
 }
