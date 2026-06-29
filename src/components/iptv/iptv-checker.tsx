@@ -69,7 +69,7 @@ function formatHitForCopy(r: IptvResult, index?: number): string {
   const info = r.info
   const m3uUrl = info?.m3u_url || r.url
   const idx = index !== undefined ? ` #${index + 1}` : ''
-  return `╭───✦${idx}\n├● Host: ${r.host || 'N/A'}\n├● User: ${r.username}\n├● Pass: ${r.password}\n├● Status: ${info?.status || 'Active'}\n├● Active: ${info?.active_cons || '0'} / ${info?.max_connections || '0'}\n├● Created: ${info?.created_at || 'N/A'}\n├● Exp: ${info?.exp_date || 'N/A'}\n├● TZ: ${info?.timezone || 'N/A'}\n├● M3U: ${m3uUrl}\n╰───✦`
+  return `╭───✦ 《 IPTV HIT${idx} 》✦ \n├● 🏢 Host: ${r.host || 'N/A'}\n├● 👤 User: ${r.username}\n├● 🔑 Pass: ${r.password}\n├● ✅ Status: ${info?.status || 'Active'}\n├● 📱 Active: ${info?.active_cons || '0'} / ${info?.max_connections || '0'}\n├● 📅 Created: ${info?.created_at || 'N/A'}\n├● ⏰ Exp: ${info?.exp_date || 'N/A'}\n├● 🌎 TZ: ${info?.timezone || 'N/A'}\n├● 🔗 M3U: ${m3uUrl}\n╰───✦ ✨ By HacheJota`
 }
 
 function timeAgo(dateStr: string): string {

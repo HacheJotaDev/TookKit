@@ -30,19 +30,19 @@ function formatHitMessage(hit: HitInfo): string {
   const expDate = (info.exp_date as string) || 'N/A'
   const timezone = (info.timezone as string) || 'N/A'
 
-  const modeLabel = hit.inputMode === 'url' ? 'URL Mode' : 'Combo Mode'
+  const modeLabel = hit.inputMode === 'url' ? 'URL' : 'Combo'
 
-  return `╭───✦ ${modeLabel}
-├● Host: ${hit.host}
-├● User: ${hit.username}
-├● Pass: ${hit.password}
-├● Status: ${status}
-├● Active: ${activeCons} / ${maxCons}
-├● Created: ${createdAt}
-├● Exp: ${expDate}
-├● TZ: ${timezone}
-├● M3U: ${m3uUrl}
-╰───✦`
+  return `╭───✦ 《 IPTV HIT — ${modeLabel} 》✦ 
+├● 🏢 Host: ${hit.host}
+├● 👤 User: ${hit.username}
+├● 🔑 Pass: ${hit.password}
+├● ✅ Status: ${status}
+├● 📱 Active: ${activeCons} / ${maxCons}
+├● 📅 Created: ${createdAt}
+├● ⏰ Exp: ${expDate}
+├● 🌎 TZ: ${timezone}
+├● 🔗 M3U: ${m3uUrl}
+╰───✦ ✨ By HacheJota`
 }
 
 /**
