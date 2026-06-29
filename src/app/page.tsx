@@ -1100,45 +1100,35 @@ function EmailTab() {
 
 const ADDRESS_COUNTRIES = [
   { code: 'US', label: 'Estados Unidos', flag: '🇺🇸' },
+  { code: 'GB', label: 'Reino Unido', flag: '🇬🇧' },
   { code: 'ES', label: 'España', flag: '🇪🇸' },
   { code: 'MX', label: 'México', flag: '🇲🇽' },
-  { code: 'AR', label: 'Argentina', flag: '🇦🇷' },
   { code: 'BR', label: 'Brasil', flag: '🇧🇷' },
-  { code: 'CO', label: 'Colombia', flag: '🇨🇴' },
-  { code: 'CL', label: 'Chile', flag: '🇨🇱' },
-  { code: 'PE', label: 'Perú', flag: '🇵🇪' },
-  { code: 'GB', label: 'Reino Unido', flag: '🇬🇧' },
   { code: 'FR', label: 'Francia', flag: '🇫🇷' },
   { code: 'DE', label: 'Alemania', flag: '🇩🇪' },
   { code: 'IT', label: 'Italia', flag: '🇮🇹' },
   { code: 'CA', label: 'Canadá', flag: '🇨🇦' },
   { code: 'AU', label: 'Australia', flag: '🇦🇺' },
-  { code: 'JP', label: 'Japón', flag: '🇯🇵' },
   { code: 'IN', label: 'India', flag: '🇮🇳' },
-  { code: 'TR', label: 'Turquía', flag: '🇹🇷' },
   { code: 'NL', label: 'Países Bajos', flag: '🇳🇱' },
   { code: 'CH', label: 'Suiza', flag: '🇨🇭' },
+  { code: 'IE', label: 'Irlanda', flag: '🇮🇪' },
   { code: 'DK', label: 'Dinamarca', flag: '🇩🇰' },
   { code: 'FI', label: 'Finlandia', flag: '🇫🇮' },
-  { code: 'IE', label: 'Irlanda', flag: '🇮🇪' },
   { code: 'NO', label: 'Noruega', flag: '🇳🇴' },
   { code: 'NZ', label: 'Nueva Zelanda', flag: '🇳🇿' },
-  { code: 'SE', label: 'Suecia', flag: '🇸🇪' },
-  { code: 'UA', label: 'Ucrania', flag: '🇺🇦' },
-  { code: 'PL', label: 'Polonia', flag: '🇵🇱' },
-  { code: 'PT', label: 'Portugal', flag: '🇵🇹' },
-  { code: 'RU', label: 'Rusia', flag: '🇷🇺' },
+  { code: 'TR', label: 'Turquía', flag: '🇹🇷' },
   { code: 'IR', label: 'Irán', flag: '🇮🇷' },
+  { code: 'RS', label: 'Serbia', flag: '🇷🇸' },
 ] as const
 
-// randomuser.me nat codes don't cover all countries — fallback mapping
+// All nat codes are directly from randomuser.me official documentation
+// https://randomuser.me/documentation#nat
 const NAT_MAP: Record<string, string> = {
-  AR: 'AR', BR: 'BR', CO: 'CO', CL: 'CL', PE: 'PE',
-  MX: 'MX', ES: 'ES', GB: 'GB', FR: 'FR', DE: 'DE',
-  IT: 'IT', CA: 'CA', AU: 'AU', JP: 'JP', IN: 'IN',
-  TR: 'TR', NL: 'NL', CH: 'CH', DK: 'DK', FI: 'FI',
-  IE: 'IE', NO: 'NO', NZ: 'NZ', SE: 'SE', UA: 'UA',
-  PL: 'PL', PT: 'PT', RU: 'RU', IR: 'IR', US: 'US',
+  US: 'US', GB: 'GB', ES: 'ES', MX: 'MX', BR: 'BR',
+  FR: 'FR', DE: 'DE', IT: 'IT', CA: 'CA', AU: 'AU',
+  IN: 'IN', NL: 'NL', CH: 'CH', IE: 'IE', DK: 'DK',
+  FI: 'FI', NO: 'NO', NZ: 'NZ', TR: 'TR', IR: 'IR', RS: 'RS',
 }
 
 function AddressTab() {
