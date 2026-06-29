@@ -6,7 +6,7 @@ import {
   CreditCard, Search, Tv, Mail, Settings, Copy, Check, Play,
   Trash2, RefreshCw, ChevronDown, Info, Moon, Sun,
   X, Loader2, Square, Send, ExternalLink, Zap, Upload, AlertTriangle,
-  MessageCircle, Phone, Share2
+  MessageCircle, Phone, Share2, MapPin
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { IptvChecker } from '@/components/iptv/iptv-checker'
@@ -16,7 +16,7 @@ import { apiFetch } from '@/lib/api-config'
 // TYPES
 // ============================================================
 
-type TabId = 'cards' | 'checker' | 'iptv' | 'email' | 'settings'
+type TabId = 'cards' | 'checker' | 'iptv' | 'email' | 'address' | 'settings'
 
 interface GeneratedCard {
   number: string
@@ -47,6 +47,15 @@ interface EmailMessage {
   subject: string
   createdAt: string
   intro?: string
+}
+
+interface GeneratedAddress {
+  street: string
+  city: string
+  state: string
+  country: string
+  postcode: string
+  phone: string
 }
 
 // ─── Direct mail.tm API client (bypasses Vercel proxy) ────
@@ -187,6 +196,7 @@ const tabs: { id: TabId; label: string; icon: typeof CreditCard }[] = [
   { id: 'checker', label: 'Checker', icon: Search },
   { id: 'iptv', label: 'IPTV', icon: Tv },
   { id: 'email', label: 'Correo', icon: Mail },
+  { id: 'address', label: 'Direcciones', icon: MapPin },
   { id: 'settings', label: 'Ajustes', icon: Settings },
 ]
 
@@ -212,7 +222,7 @@ export default function Home() {
 
       {/* Content Area */}
       <main className="flex-1 overflow-y-auto pb-20">
-        {(['cards', 'checker', 'iptv', 'email', 'settings'] as TabId[]).map(tabId => (
+        {(['cards', 'checker', 'iptv', 'email', 'address', 'settings'] as TabId[]).map(tabId => (
           <div
             key={tabId}
             className={activeTab === tabId ? 'px-4 py-4' : 'hidden'}
@@ -221,6 +231,7 @@ export default function Home() {
             {tabId === 'checker' && <CheckerTab />}
             {tabId === 'iptv' && <IptvTab />}
             {tabId === 'email' && <EmailTab />}
+            {tabId === 'address' && <AddressTab />}
             {tabId === 'settings' && <SettingsTab />}
           </div>
         ))}
@@ -1084,7 +1095,226 @@ function EmailTab() {
 }
 
 // ============================================================
-// TAB 5: SETTINGS
+// TAB 5: ADDRESS GENERATOR — Direct API (bypasses proxy)
+// ============================================================
+
+const ADDRESS_COUNTRIES = [
+  { code: 'US', label: 'Estados Unidos', flag: '🇺🇸' },
+  { code: 'ES', label: 'España', flag: '🇪🇸' },
+  { code: 'MX', label: 'México', flag: '🇲🇽' },
+  { code: 'AR', label: 'Argentina', flag: '🇦🇷' },
+  { code: 'BR', label: 'Brasil', flag: '🇧🇷' },
+  { code: 'CO', label: 'Colombia', flag: '🇨🇴' },
+  { code: 'CL', label: 'Chile', flag: '🇨🇱' },
+  { code: 'PE', label: 'Perú', flag: '🇵🇪' },
+  { code: 'GB', label: 'Reino Unido', flag: '🇬🇧' },
+  { code: 'FR', label: 'Francia', flag: '🇫🇷' },
+  { code: 'DE', label: 'Alemania', flag: '🇩🇪' },
+  { code: 'IT', label: 'Italia', flag: '🇮🇹' },
+  { code: 'CA', label: 'Canadá', flag: '🇨🇦' },
+  { code: 'AU', label: 'Australia', flag: '🇦🇺' },
+  { code: 'JP', label: 'Japón', flag: '🇯🇵' },
+  { code: 'IN', label: 'India', flag: '🇮🇳' },
+  { code: 'TR', label: 'Turquía', flag: '🇹🇷' },
+  { code: 'NL', label: 'Países Bajos', flag: '🇳🇱' },
+  { code: 'CH', label: 'Suiza', flag: '🇨🇭' },
+  { code: 'DK', label: 'Dinamarca', flag: '🇩🇰' },
+  { code: 'FI', label: 'Finlandia', flag: '🇫🇮' },
+  { code: 'IE', label: 'Irlanda', flag: '🇮🇪' },
+  { code: 'NO', label: 'Noruega', flag: '🇳🇴' },
+  { code: 'NZ', label: 'Nueva Zelanda', flag: '🇳🇿' },
+  { code: 'SE', label: 'Suecia', flag: '🇸🇪' },
+  { code: 'UA', label: 'Ucrania', flag: '🇺🇦' },
+  { code: 'PL', label: 'Polonia', flag: '🇵🇱' },
+  { code: 'PT', label: 'Portugal', flag: '🇵🇹' },
+  { code: 'RU', label: 'Rusia', flag: '🇷🇺' },
+  { code: 'IR', label: 'Irán', flag: '🇮🇷' },
+] as const
+
+// randomuser.me nat codes don't cover all countries — fallback mapping
+const NAT_MAP: Record<string, string> = {
+  AR: 'AR', BR: 'BR', CO: 'CO', CL: 'CL', PE: 'PE',
+  MX: 'MX', ES: 'ES', GB: 'GB', FR: 'FR', DE: 'DE',
+  IT: 'IT', CA: 'CA', AU: 'AU', JP: 'JP', IN: 'IN',
+  TR: 'TR', NL: 'NL', CH: 'CH', DK: 'DK', FI: 'FI',
+  IE: 'IE', NO: 'NO', NZ: 'NZ', SE: 'SE', UA: 'UA',
+  PL: 'PL', PT: 'PT', RU: 'RU', IR: 'IR', US: 'US',
+}
+
+function AddressTab() {
+  const [selectedCountry, setSelectedCountry] = useState('US')
+  const [quantity, setQuantity] = useState('5')
+  const [addresses, setAddresses] = useState<GeneratedAddress[]>([])
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
+  const [copiedAll, setCopiedAll] = useState(false)
+
+  const handleGenerate = useCallback(async () => {
+    setIsGenerating(true)
+    setAddresses([])
+
+    const qty = Math.min(Math.max(parseInt(quantity) || 1, 1), 50)
+    const natCode = NAT_MAP[selectedCountry] || 'US'
+
+    try {
+      // ── DIRECT to randomuser.me API (CORS-enabled, no proxy needed) ──
+      const res = await fetch(`https://randomuser.me/api/?results=${qty}&nat=${natCode}&inc=location,phone`)
+      const data = await res.json()
+
+      if (data.error) {
+        toast.error('Error al generar direcciones. Intenta de nuevo.')
+        return
+      }
+
+      const results: GeneratedAddress[] = (data.results || []).map((user: Record<string, unknown>) => {
+        const loc = user.location as Record<string, unknown>
+        const street = loc?.street as Record<string, unknown> | undefined
+        const streetNum = street?.number ?? ''
+        const streetName = street?.name ?? ''
+        const phone = (user.phone as string) || ''
+
+        return {
+          street: `${streetNum} ${streetName}`.trim(),
+          city: (loc?.city as string) || '',
+          state: (loc?.state as string) || '',
+          country: (loc?.country as string) || '',
+          postcode: String(loc?.postcode ?? ''),
+          phone: phone.replace(/\s/g, ''),
+        }
+      })
+
+      setAddresses(results)
+      toast.success(`${results.length} dirección${results.length > 1 ? 'es' : ''} generada${results.length > 1 ? 's' : ''}`)
+    } catch {
+      toast.error('Error de conexión. Verifica tu internet.')
+    } finally {
+      setIsGenerating(false)
+    }
+  }, [selectedCountry, quantity])
+
+  const copyAddress = useCallback(async (addr: GeneratedAddress, idx: number) => {
+    const text = `${addr.street}\n${addr.city}, ${addr.state} ${addr.postcode}\n${addr.country}\nTel: ${addr.phone}`
+    await navigator.clipboard.writeText(text)
+    setCopiedIdx(idx)
+    toast.success('Dirección copiada')
+    setTimeout(() => setCopiedIdx(null), 1500)
+  }, [])
+
+  const copyAll = useCallback(async () => {
+    if (addresses.length === 0) return
+    const text = addresses.map(a =>
+      `${a.street} | ${a.city} | ${a.state} | ${a.postcode} | ${a.country} | ${a.phone}`
+    ).join('\n')
+    await navigator.clipboard.writeText(text)
+    setCopiedAll(true)
+    toast.success(`${addresses.length} direcciones copiadas`)
+    setTimeout(() => setCopiedAll(false), 2000)
+  }, [addresses])
+
+  return (
+    <div className="space-y-4">
+      {/* Country & Quantity Selector */}
+      <div className="bg-[#111113] theme-card rounded-xl border border-white/[0.06] p-4 space-y-3">
+        <label className="text-xs font-medium text-white/50 theme-text-dim uppercase tracking-wider">País</label>
+        <select
+          value={selectedCountry}
+          onChange={(e) => setSelectedCountry(e.target.value)}
+          className="w-full bg-[#09090b] theme-input border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white theme-text focus:outline-none focus:border-amber-500/50 transition-colors"
+        >
+          {ADDRESS_COUNTRIES.map(c => (
+            <option key={c.code} value={c.code}>{c.flag} {c.label}</option>
+          ))}
+        </select>
+
+        <div className="flex gap-2">
+          <div className="flex-1">
+            <label className="text-xs font-medium text-white/50 theme-text-dim uppercase tracking-wider">Cantidad</label>
+            <input
+              type="number"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              min="1"
+              max="50"
+              placeholder="5"
+              className="w-full bg-[#09090b] theme-input border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white theme-text placeholder-white/20 focus:outline-none focus:border-amber-500/50 font-mono transition-colors"
+            />
+          </div>
+        </div>
+
+        <button
+          onClick={handleGenerate}
+          disabled={isGenerating}
+          className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold rounded-lg py-2.5 text-sm transition-colors flex items-center justify-center gap-2"
+        >
+          {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <MapPin className="w-4 h-4" />}
+          {isGenerating ? 'Generando...' : 'Generar Direcciones'}
+        </button>
+      </div>
+
+      {/* Results */}
+      {addresses.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-white/40 theme-text-dim">{addresses.length} resultado{addresses.length > 1 ? 's' : ''}</span>
+            <button
+              onClick={copyAll}
+              className="flex items-center gap-1.5 text-xs text-amber-500 hover:text-amber-400 transition-colors"
+            >
+              {copiedAll ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+              Copiar Todo
+            </button>
+          </div>
+
+          <div className="max-h-[60vh] overflow-y-auto space-y-2 custom-scrollbar">
+            {addresses.map((addr, idx) => (
+              <motion.div
+                key={`addr-${idx}-${addr.street}`}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: idx * 0.03 }}
+                className="bg-gradient-to-br from-[#1a1a2e] to-[#111113] theme-gradient-card rounded-xl border border-white/[0.06] p-3.5 group"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="space-y-1.5 min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="w-4 h-4 text-amber-500/70 shrink-0" />
+                      <span className="text-xs uppercase tracking-wider text-white/30 theme-text-dim font-medium truncate">
+                        {addr.country}
+                      </span>
+                    </div>
+                    <p className="text-sm text-white/90 theme-text leading-snug">
+                      {addr.street}
+                    </p>
+                    <p className="text-sm text-white/70 theme-text leading-snug">
+                      {addr.city}, {addr.state}
+                    </p>
+                    <div className="flex gap-4 text-xs font-mono text-white/50 theme-text-dim">
+                      <span>CP: {addr.postcode}</span>
+                      <span>Tel: {addr.phone}</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => copyAddress(addr, idx)}
+                    className="p-1.5 rounded-lg hover:bg-white/[0.06] transition-colors shrink-0 ml-2"
+                  >
+                    {copiedIdx === idx ? (
+                      <Check className="w-4 h-4 text-green-500" />
+                    ) : (
+                      <Copy className="w-4 h-4 text-white/30 theme-text-dim group-hover:text-white/60 theme-text-dim" />
+                    )}
+                  </button>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ============================================================
+// TAB 6: SETTINGS
 // ============================================================
 
 function SettingsTab() {
@@ -1207,6 +1437,7 @@ function SettingsTab() {
           { icon: Search, label: 'CCS Checker', desc: 'Verificación de ccs en tiempo real' },
           { icon: Tv, label: 'IPTV Checker', desc: 'Verificación de líneas iptv' },
           { icon: Mail, label: 'Correo Temporal', desc: 'Genera un correo temporal' },
+          { icon: MapPin, label: 'Generador de Direcciones', desc: 'Genera direcciones aleatorias por país' },
         ].map((feature, i) => (
           <div key={i} className="flex items-center gap-3 py-1">
             <div className="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center">
@@ -1227,7 +1458,7 @@ function SettingsTab() {
           <h3 className="text-xs font-medium text-white/50 theme-text-dim uppercase tracking-wider">Acerca de</h3>
         </div>
         <p className="text-xs text-white/40 theme-text-dim leading-relaxed">
-          HJTools X v1.0 — Plataforma con Generador de Tarjetas, CCS Checker, IPTV Checker y Correo Temporal, diseñada para verificación y utilidades inteligentes en tiempo real.
+          HJTools X v1.0 — Plataforma con Generador de Tarjetas, CCS Checker, IPTV Checker, Correo Temporal y Generador de Direcciones, diseñada para verificación y utilidades inteligentes en tiempo real.
         </p>
         <div className="flex items-center gap-2 pt-2">
           <Zap className="w-3 h-3 text-amber-500/40" />
