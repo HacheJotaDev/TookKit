@@ -471,10 +471,10 @@ function CheckerTab() {
       setResults(prev => [...prev, { cc, status: 'checking' }])
 
       try {
-        const res = await apiFetch('/api/check', {
+        const res = await fetch('https://api.chkr.cc/', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cc }),
+          body: JSON.stringify({ data: cc, charge: false }),
         })
         const data = await res.json()
 
