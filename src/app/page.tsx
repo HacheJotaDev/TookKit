@@ -373,10 +373,7 @@ function CardsTab() {
         <div className="flex items-center gap-2 min-h-[20px]">
           {binLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-500/50" />}
           {!binLoading && binInfo && (
-            <div className="flex items-center gap-1.5 animate-in fade-in duration-200">
-              <span className="text-sm">{binInfo.flag}</span>
-              <span className="text-xs font-medium" style={{ color: 'var(--app-text-70)' }}>{binInfo.country_name}</span>
-            </div>
+            <span className="text-xs font-medium animate-in fade-in duration-200" style={{ color: 'var(--app-text-70)' }}>{binInfo.country_name}</span>
           )}
         </div>
         <div className="flex gap-2">
@@ -464,7 +461,7 @@ function CardsTab() {
                           {card.type}
                         </span>
                         {binInfo && (
-                          <span className="text-xs" title={binInfo.country_name}>{binInfo.flag}</span>
+                          <span className="text-[10px] font-medium" style={{ color: 'var(--app-text-dim)' }}>{binInfo.country_name}</span>
                         )}
                       </div>
                       <p className="font-mono text-sm tracking-wider" style={{ color: 'var(--app-text-90)' }}>
