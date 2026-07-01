@@ -365,12 +365,9 @@ function CardsTab() {
           placeholder="4532xxxx o 5234xxxxxxxx"
           className="w-full bg-[#09090b] theme-input border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white theme-text placeholder-white/20 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 font-mono transition-colors"
         />
-        {/* BIN Country Info */}
-        <div className="flex items-center gap-2 min-h-[20px]">
+        {/* BIN lookup loading indicator */}
+        <div className="min-h-[20px]">
           {binLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-500/50" />}
-          {!binLoading && binInfo && (
-            <span className="text-xs font-medium animate-in fade-in duration-200" style={{ color: 'var(--app-text-70)' }}>{binInfo.country_name}</span>
-          )}
         </div>
         <div className="flex gap-2">
           <input
