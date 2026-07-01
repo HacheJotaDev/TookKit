@@ -194,11 +194,11 @@ function detectCardType(bin: string): string {
 
 const tabs: { id: TabId; label: string; icon: typeof CreditCard }[] = [
   { id: 'cards', label: 'Tarjetas', icon: CreditCard },
-  { id: 'iban', label: 'IBAN', icon: Landmark },
   { id: 'checker', label: 'Checker', icon: Search },
   { id: 'iptv', label: 'IPTV', icon: Tv },
   { id: 'email', label: 'Correo', icon: Mail },
   { id: 'address', label: 'Direcciones', icon: MapPin },
+  { id: 'iban', label: 'IBAN', icon: Landmark },
   { id: 'settings', label: 'Ajustes', icon: Settings },
 ]
 
@@ -302,19 +302,15 @@ function CardsTab() {
   const [binInfo, setBinInfo] = useState<BinInfo | null>(null)
   const [binLoading, setBinLoading] = useState(false)
 
-  // Debounced BIN lookup
-  const debouncedBin = useDebounce(bin.replace(/[^0-9]/g, '').slice(0, 6), 600)
+  // Debounced BIN lookup (via own proxy to avoid CORS)
+  const debouncedBin = useDebounce(bin.replace(/[^0-9]/g, '').slice(0, 6), 500)
   useEffect(() => {
     if (debouncedBin.length >= 6) {
       setBinLoading(true)
-      fetch(`https://bins.antipublic.cc/bins/${debouncedBin}`)
+      fetch(`/api/bin/${debouncedBin}`)
         .then(r => r.ok ? r.json() : null)
-        .then((data: { country_flag?: string; country_name?: string } | null) => {
-          if (data?.country_flag && data?.country_name) {
-            setBinInfo({ flag: data.country_flag, country_name: data.country_name })
-          } else {
-            setBinInfo(null)
-          }
+        .then((data: { country_name?: string } | null) => {
+          setBinInfo(data?.country_name ? { flag: '', country_name: data.country_name } : null)
         })
         .catch(() => setBinInfo(null))
         .finally(() => setBinLoading(false))
