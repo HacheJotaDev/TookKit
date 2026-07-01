@@ -286,6 +286,11 @@ export default function Home() {
 // TAB 1: CREDIT CARD GENERATOR
 // ============================================================
 
+interface BinInfo {
+  flag: string
+  country_name: string
+}
+
 function CardsTab() {
   const [bin, setBin] = useState('')
   const [quantity, setQuantity] = useState('10')
@@ -294,6 +299,29 @@ function CardsTab() {
   const [cards, setCards] = useState<GeneratedCard[]>([])
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
   const [copiedAll, setCopiedAll] = useState(false)
+  const [binInfo, setBinInfo] = useState<BinInfo | null>(null)
+  const [binLoading, setBinLoading] = useState(false)
+
+  // Debounced BIN lookup
+  const debouncedBin = useDebounce(bin.replace(/[^0-9]/g, '').slice(0, 6), 600)
+  useEffect(() => {
+    if (debouncedBin.length >= 6) {
+      setBinLoading(true)
+      fetch(`https://bins.antipublic.cc/bins/${debouncedBin}`)
+        .then(r => r.ok ? r.json() : null)
+        .then((data: { country_flag?: string; country_name?: string } | null) => {
+          if (data?.country_flag && data?.country_name) {
+            setBinInfo({ flag: data.country_flag, country_name: data.country_name })
+          } else {
+            setBinInfo(null)
+          }
+        })
+        .catch(() => setBinInfo(null))
+        .finally(() => setBinLoading(false))
+    } else {
+      setBinInfo(null)
+    }
+  }, [debouncedBin])
 
   const handleGenerate = useCallback(() => {
     if (!bin.trim()) {
@@ -341,6 +369,16 @@ function CardsTab() {
           placeholder="4532xxxx o 5234xxxxxxxx"
           className="w-full bg-[#09090b] theme-input border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white theme-text placeholder-white/20 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 font-mono transition-colors"
         />
+        {/* BIN Country Info */}
+        <div className="flex items-center gap-2 min-h-[20px]">
+          {binLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-500/50" />}
+          {!binLoading && binInfo && (
+            <div className="flex items-center gap-1.5 animate-in fade-in duration-200">
+              <span className="text-sm">{binInfo.flag}</span>
+              <span className="text-xs font-medium" style={{ color: 'var(--app-text-70)' }}>{binInfo.country_name}</span>
+            </div>
+          )}
+        </div>
         <div className="flex gap-2">
           <input
             type="number"
@@ -425,6 +463,9 @@ function CardsTab() {
                         }`}>
                           {card.type}
                         </span>
+                        {binInfo && (
+                          <span className="text-xs" title={binInfo.country_name}>{binInfo.flag}</span>
+                        )}
                       </div>
                       <p className="font-mono text-sm tracking-wider" style={{ color: 'var(--app-text-90)' }}>
                         {formatCardNumber(card.number)}
