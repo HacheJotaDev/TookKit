@@ -234,7 +234,7 @@ export default function Home() {
 
       {/* Content Area */}
       <main className="flex-1 overflow-y-auto pb-20">
-        {(['cards', 'checker', 'iptv', 'email', 'address', 'iban', 'settings'] as TabId[]).map(tabId => (
+        {(['cards', 'checker', 'address', 'email', 'iban', 'iptv', 'settings'] as TabId[]).map(tabId => (
           <div
             key={tabId}
             className={activeTab === tabId ? 'px-4 py-4' : 'hidden'}
