@@ -14,6 +14,11 @@ import { apiFetch } from '@/lib/api-config'
 import { IBAN_COUNTRIES, generateIban, formatIban, type IbanCountry } from '@/lib/iban-data'
 
 // ============================================================
+// BIN CACHE (module-level, persists across re-renders)
+// ============================================================
+const binCache = new Map<string, { country_name: string }>()
+
+// ============================================================
 // TYPES
 // ============================================================
 
@@ -302,15 +307,23 @@ function CardsTab() {
   const [binInfo, setBinInfo] = useState<BinInfo | null>(null)
   const [binLoading, setBinLoading] = useState(false)
 
-  // Debounced BIN lookup (via own proxy to avoid CORS)
+  // Debounced BIN lookup (with client-side cache to avoid repeated host calls)
   const debouncedBin = useDebounce(bin.replace(/[^0-9]/g, '').slice(0, 6), 500)
   useEffect(() => {
     if (debouncedBin.length >= 6) {
+      // Check cache first
+      const cached = binCache.get(debouncedBin)
+      if (cached) {
+        setBinInfo({ flag: '', country_name: cached.country_name })
+        return
+      }
       setBinLoading(true)
       fetch(`/api/bin/${debouncedBin}`)
         .then(r => r.ok ? r.json() : null)
         .then((data: { country_name?: string } | null) => {
-          setBinInfo(data?.country_name ? { flag: '', country_name: data.country_name } : null)
+          const info = data?.country_name ? { flag: '', country_name: data.country_name } : null
+          if (info) binCache.set(debouncedBin, { country_name: info.country_name })
+          setBinInfo(info)
         })
         .catch(() => setBinInfo(null))
         .finally(() => setBinLoading(false))

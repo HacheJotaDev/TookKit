@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 
+export const revalidate = 86400 // Cache at Vercel edge for 24h (BIN data rarely changes)
+
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ bin: string }> }
@@ -14,6 +16,7 @@ export async function GET(
     const res = await fetch(`https://bins.antipublic.cc/bins/${clean}`, {
       headers: { 'Accept': 'application/json' },
       signal: AbortSignal.timeout(8000),
+      next: { revalidate: 86400 },
     })
 
     if (!res.ok) {
@@ -21,11 +24,13 @@ export async function GET(
     }
 
     const data = await res.json()
-    // Return only what we need
-    return NextResponse.json({
-      country_name: data.country_name || null,
-      country_flag: data.country_flag || null,
-    })
+    return NextResponse.json(
+      { country_name: data.country_name || null },
+      {
+        status: 200,
+        headers: { 'Cache-Control': 'public, s-maxage=86400, stale-while-revalidate=43200' },
+      }
+    )
   } catch {
     return NextResponse.json({ error: 'Lookup failed' }, { status: 500 })
   }

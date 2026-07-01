@@ -488,6 +488,7 @@ export function IptvChecker() {
     setViewingSession(null)
 
     let processed = 0, hits = 0, bad = 0, timeoutCount = 0
+    const pendingHits: Array<{ host: string; username: string; password: string; url: string; info?: Record<string, unknown> }> = []
 
     const modeLabel = proxyEnabled ? 'con proxies' : 'directo'
     toast.info(`Verificando ${totalLines} líneas ${modeLabel}...`)
@@ -531,11 +532,7 @@ export function IptvChecker() {
         processed++
         if (r.status === 'hit') {
           hits++
-          apiFetch('/api/telegram/hit', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ host: r.host, username: r.username, password: r.password, url: r.url, info: r.info, inputMode }),
-          }).catch(() => {})
+          pendingHits.push({ host: r.host || '', username: r.username || '', password: r.password || '', url: r.url || '', info: r.info as Record<string, unknown> | undefined })
         }
         else if (r.status === 'timeout') timeoutCount++
         else bad++
@@ -561,6 +558,15 @@ export function IptvChecker() {
     setIsRunning(false)
     stopRef.current = false
     setSessionsVersion(v => v + 1)
+
+    // Batch send all hits to Telegram in a single host call
+    if (pendingHits.length > 0) {
+      apiFetch('/api/telegram/hit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hits: pendingHits.map(h => ({ ...h, inputMode })) }),
+      }).catch(() => {})
+    }
 
     if (processed === totalLines) {
       toast.success(`Completado: ${hits} hits, ${bad} bad, ${timeoutCount} timeout`)
