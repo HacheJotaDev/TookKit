@@ -416,7 +416,7 @@ export function IptvChecker() {
       setProxyInput(text)
       setProxyFileName(file.name)
       const count = text.trim().split('\n').filter(l => l.trim()).length
-      toast.success(`${count} proxies cargados`)
+      toast.success(`${count} rutas cargadas`)
     }
     reader.readAsText(file)
     e.target.value = ''
@@ -429,7 +429,7 @@ export function IptvChecker() {
 
     setIsValidating(true)
     setValidProxies([])
-    toast.info(`Validando ${lines.length} proxies...`)
+    toast.info(`Preparando ${lines.length} rutas...`)
 
     try {
       // Validate in batches of 50
@@ -455,12 +455,12 @@ export function IptvChecker() {
       setValidProxies(allValid)
       if (allValid.length > 0) {
         setProxyEnabled(true)
-        toast.success(`${allValid.length} proxies válidos de ${lines.length}`)
+        toast.success(`${allValid.length} rutas activas de ${lines.length}`)
       } else {
-        toast.error('Ningún proxy válido encontrado')
+        toast.error('Sin rutas disponibles')
       }
     } catch {
-      toast.error('Error validando proxies')
+      toast.error('Error al preparar rutas')
     } finally {
       setIsValidating(false)
     }
@@ -471,7 +471,7 @@ export function IptvChecker() {
     const allLines = comboList.trim().split('\n').filter(l => l.trim())
     if (allLines.length === 0) { toast.error('Carga un combo o pega líneas'); return }
     if (inputMode === 'combo' && !serverHost.trim()) { toast.error('Ingresa el servidor (host:port)'); return }
-    if (proxyEnabled && validProxies.length === 0) { toast.error('No hay proxies válidos'); return }
+    if (proxyEnabled && validProxies.length === 0) { toast.error('Activa las rutas primero'); return }
 
     const sessionId = crypto.randomUUID()
     currentSessionIdRef.current = sessionId
@@ -490,8 +490,7 @@ export function IptvChecker() {
     let processed = 0, hits = 0, bad = 0, timeoutCount = 0
     const pendingHits: Array<{ host: string; username: string; password: string; url: string; info?: Record<string, unknown> }> = []
 
-    const modeLabel = proxyEnabled ? 'con proxies' : 'directo'
-    toast.info(`Verificando ${totalLines} líneas ${modeLabel}...`)
+    toast.info(`Analizando ${totalLines} líneas...`)
 
     const useProxy = proxyEnabled && validProxies.length > 0
 
@@ -647,9 +646,9 @@ export function IptvChecker() {
             >
               <div className="flex items-center gap-2">
                 <Shield className="w-3.5 h-3.5 text-white/20" />
-                <span className="text-[10px] font-semibold text-white/30 uppercase tracking-wider">Proxies</span>
+                <span className="text-[10px] font-semibold text-white/30 uppercase tracking-wider">Enrutamiento</span>
                 {proxyEnabled && validProxies.length > 0 && (
-                  <span className="text-[8px] bg-green-500/15 text-green-400/80 px-1.5 py-0.5 rounded-full font-mono font-bold">{validProxies.length} activos</span>
+                  <span className="text-[8px] bg-green-500/15 text-green-400/80 px-1.5 py-0.5 rounded-full font-mono font-bold">{validProxies.length} listas</span>
                 )}
               </div>
               <ChevronDown className={`w-3 h-3 text-white/20 transition-transform duration-200 ${showProxyPanel ? 'rotate-180' : ''}`} />
@@ -663,7 +662,7 @@ export function IptvChecker() {
                       value={proxyInput}
                       onChange={(e) => setProxyInput(e.target.value)}
                       disabled={isRunning || isValidating}
-                      placeholder="ip:port  o  ip:port:user:pass&#10;Una proxy por línea..."
+                      placeholder="ip:port  o  ip:port:user:pass&#10;Una ruta por línea..."
                       rows={3}
                       className="w-full bg-[#060608] border border-white/[0.04] rounded-lg px-2.5 py-2 text-[10px] text-white placeholder-white/10 focus:outline-none focus:border-amber-500/30 font-mono resize-none transition-all disabled:opacity-40"
                     />
@@ -753,7 +752,7 @@ export function IptvChecker() {
             <motion.div className="h-full rounded-full bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500" initial={{ width: 0 }} animate={{ width: `${progress}%` }} transition={{ duration: 0.3, ease: 'easeOut' }} />
           </div>
           <div className="flex justify-between text-[9px] text-white/15 font-mono px-0.5">
-            <span>{stats.total} / {stats.totalLines}{proxyEnabled && validProxies.length > 0 ? ' · proxy' : ''}</span>
+            <span>{stats.total} / {stats.totalLines}{proxyEnabled && validProxies.length > 0 ? ' · protegido' : ''}</span>
             <span>{progress}%</span>
           </div>
         </div>

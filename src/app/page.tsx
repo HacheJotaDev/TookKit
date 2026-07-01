@@ -509,7 +509,7 @@ function CheckerTab() {
   const startCheck = useCallback(async () => {
     const lines = ccList.trim().split('\n').filter(l => l.trim())
     if (lines.length === 0) {
-      toast.error('Pega al menos una CC')
+      toast.error('Ingresa al menos una tarjeta')
       return
     }
 
@@ -578,13 +578,13 @@ function CheckerTab() {
     }
 
     setIsRunning(false)
-    toast.success(`Verificación completada: ${live} vivas, ${dead} muertas`)
+    toast.success(`Listo: ${live} aprobadas, ${dead} rechazadas`)
   }, [ccList])
 
   const stopCheck = useCallback(() => {
     stopRef.current = true
     setIsRunning(false)
-    toast.info('Verificación detenida')
+    toast.info('Proceso detenido')
   }, [])
 
   const liveResults = results.filter(r => r.status === 'live')
@@ -609,7 +609,7 @@ function CheckerTab() {
             className="flex-1 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 disabled:opacity-50 disabled:cursor-not-allowed text-black font-bold rounded-xl py-3 text-sm transition-all duration-300 flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 active:scale-[0.98]"
           >
             {isRunning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-            {isRunning ? 'Verificando...' : 'Iniciar Check'}
+            {isRunning ? 'Analizando...' : 'Verificar'}
           </button>
           {isRunning && (
             <motion.button
