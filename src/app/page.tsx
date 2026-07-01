@@ -1640,7 +1640,11 @@ function SettingsTab() {
         </div>
       </div>
 
-      {/* Features */}
+      {/* Tools */}
+      <div className="flex items-center gap-2 px-1">
+        <Zap className="w-4 h-4 text-amber-500/50" />
+        <h3 className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--app-text-dim)' }}>Herramientas</h3>
+      </div>
       <div className="grid grid-cols-2 gap-2">
         {[
           { icon: CreditCard, label: 'Tarjetas', desc: 'Algoritmo Luhn', color: 'text-blue-400', bg: 'bg-blue-500/10' },
