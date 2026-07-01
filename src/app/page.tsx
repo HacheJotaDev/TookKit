@@ -194,11 +194,11 @@ function detectCardType(bin: string): string {
 
 const tabs: { id: TabId; label: string; icon: typeof CreditCard }[] = [
   { id: 'cards', label: 'Tarjetas', icon: CreditCard },
+  { id: 'iban', label: 'IBAN', icon: Landmark },
   { id: 'checker', label: 'Checker', icon: Search },
   { id: 'iptv', label: 'IPTV', icon: Tv },
   { id: 'email', label: 'Correo', icon: Mail },
   { id: 'address', label: 'Direcciones', icon: MapPin },
-  { id: 'iban', label: 'IBAN', icon: Landmark },
   { id: 'settings', label: 'Ajustes', icon: Settings },
 ]
 
@@ -213,12 +213,17 @@ export default function Home() {
     <div className="min-h-screen theme-text flex flex-col" style={{ background: 'var(--app-bg)', color: 'var(--app-text)' }}>
       {/* Header */}
       <header className="sticky top-0 z-40 backdrop-blur-xl border-b px-4 py-3" style={{ background: 'var(--app-header)', borderColor: 'var(--app-card-border)' }}>
-        <div className="flex items-center justify-center gap-2">
-          <img src="/logo.svg" alt="HJTools X" className="w-7 h-7 rounded-lg" />
-          <h1 className="text-base font-semibold tracking-tight">
-            <span className="text-amber-500">HJTools</span>
-            <span className="ml-1 text-xs font-normal" style={{ color: 'var(--app-text-dim)' }}>X</span>
-          </h1>
+        <div className="flex items-center justify-center gap-3">
+          <div className="relative">
+            <div className="absolute -inset-1.5 bg-amber-500/20 rounded-xl blur-md" />
+            <img src="/logo.svg" alt="HJTools X" className="relative w-7 h-7 rounded-lg" />
+          </div>
+          <div className="flex items-baseline gap-1.5">
+            <h1 className="text-lg font-bold tracking-tight">
+              <span className="text-amber-500">HJTools</span>
+            </h1>
+            <span className="text-[10px] font-bold text-amber-500/60 bg-amber-500/10 px-1.5 py-0.5 rounded-md tracking-widest">X</span>
+          </div>
         </div>
       </header>
 
@@ -241,39 +246,37 @@ export default function Home() {
       </main>
 
       {/* Bottom Navigation Bar */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 backdrop-blur-xl border-t" style={{ background: 'var(--app-nav)', borderColor: 'var(--app-card-border)' }}>
-        <div className="flex items-center justify-around h-16 max-w-lg mx-auto px-2">
-          {tabs.map((tab) => {
-            const Icon = tab.icon
-            const isActive = activeTab === tab.id
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex flex-col items-center justify-center gap-0.5 flex-1 py-1 transition-all duration-200 ${
-                  isActive ? 'text-amber-500' : 'hover:text-amber-500/60'
-                }`}
-                style={!isActive ? { color: 'var(--app-text-dim)' } : undefined}
-              >
-                <div className={`relative ${isActive ? 'scale-110' : ''} transition-transform duration-200`}>
-                  <Icon className="w-5 h-5" strokeWidth={isActive ? 2.5 : 1.5} />
+      <nav className="fixed bottom-0 left-0 right-0 z-50 border-t" style={{ background: 'var(--app-nav)', borderColor: 'var(--app-card-border)' }}>
+        <div className="backdrop-blur-xl">
+          <div className="flex items-center justify-around h-16 max-w-lg mx-auto px-1">
+            {tabs.map((tab) => {
+              const Icon = tab.icon
+              const isActive = activeTab === tab.id
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className="relative flex flex-col items-center justify-center gap-0.5 flex-1 py-1.5 rounded-2xl transition-all duration-300"
+                >
                   {isActive && (
                     <motion.div
-                      layoutId="nav-indicator"
-                      className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-amber-500"
-                      transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                      layoutId="nav-pill"
+                      className="absolute inset-y-1.5 inset-x-2 rounded-2xl bg-amber-500/15 border border-amber-500/20"
+                      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                     />
                   )}
-                </div>
-                <span className={`text-[10px] ${isActive ? 'font-semibold' : 'font-normal'}`}>
-                  {tab.label}
-                </span>
-              </button>
-            )
-          })}
+                  <div className={`relative z-10 ${isActive ? 'scale-110' : ''} transition-transform duration-200`}>
+                    <Icon className="w-5 h-5 transition-colors duration-200" style={{ color: isActive ? '#f59e0b' : undefined }} strokeWidth={isActive ? 2.2 : 1.5} />
+                  </div>
+                  <span className={`relative z-10 text-[10px] transition-colors duration-200 ${isActive ? 'font-bold text-amber-500' : 'font-medium'}`} style={!isActive ? { color: 'var(--app-text-dim)' } : undefined}>
+                    {tab.label}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+          <div className="h-[env(safe-area-inset-bottom)]" />
         </div>
-        {/* Safe area spacer for iOS */}
-        <div className="h-[env(safe-area-inset-bottom)]" />
       </nav>
     </div>
   )
@@ -372,7 +375,7 @@ function CardsTab() {
         </div>
         <button
           onClick={handleGenerate}
-          className="w-full bg-amber-500 hover:bg-amber-400 text-black font-semibold rounded-lg py-2.5 text-sm transition-colors flex items-center justify-center gap-2"
+          className="w-full bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-black font-bold rounded-xl py-3 text-sm transition-all duration-300 flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 hover:shadow-amber-500/30 active:scale-[0.98]"
         >
           <Zap className="w-4 h-4" />
           Generar
@@ -397,37 +400,51 @@ function CardsTab() {
             {cards.map((card, idx) => (
               <motion.div
                 key={`${card.number}-${idx}`}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: idx * 0.02 }}
-                className="bg-gradient-to-br from-[#1a1a2e] to-[#111113] theme-gradient-card rounded-xl border border-white/[0.06] p-3.5 group"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: idx * 0.02, duration: 0.3 }}
+                className="relative rounded-xl border border-white/[0.06] overflow-hidden group"
+                style={{ background: 'linear-gradient(135deg, var(--app-card-gradient-from, #1a1a2e), var(--app-card-gradient-to, #111113))' }}
               >
-                <div className="flex items-start justify-between">
-                  <div className="space-y-1.5">
-                    <div className="flex items-center gap-2">
-                      <CreditCard className="w-4 h-4 text-amber-500/70" />
-                      <span className="text-xs uppercase tracking-wider text-white/30 theme-text-dim font-medium">
-                        {card.type}
-                      </span>
+                {/* Left accent line */}
+                <div className={`absolute left-0 top-0 bottom-0 w-0.5 ${
+                  card.type === 'visa' ? 'bg-blue-500' :
+                  card.type === 'mastercard' ? 'bg-orange-500' :
+                  card.type === 'amex' ? 'bg-green-500' :
+                  'bg-amber-500'
+                }`} />
+                <div className="p-3.5 pl-4">
+                  <div className="flex items-start justify-between">
+                    <div className="space-y-1.5 min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded ${
+                          card.type === 'visa' ? 'bg-blue-500/15 text-blue-400' :
+                          card.type === 'mastercard' ? 'bg-orange-500/15 text-orange-400' :
+                          card.type === 'amex' ? 'bg-green-500/15 text-green-400' :
+                          'bg-amber-500/15 text-amber-400'
+                        }`}>
+                          {card.type}
+                        </span>
+                      </div>
+                      <p className="font-mono text-sm tracking-wider" style={{ color: 'var(--app-text-90)' }}>
+                        {formatCardNumber(card.number)}
+                      </p>
+                      <div className="flex gap-4 text-xs font-mono" style={{ color: 'var(--app-text-dim)' }}>
+                        <span>{card.month}/{card.year}</span>
+                        <span>CVV: {card.cvv}</span>
+                      </div>
                     </div>
-                    <p className="font-mono text-sm tracking-wider text-white/90 theme-text">
-                      {formatCardNumber(card.number)}
-                    </p>
-                    <div className="flex gap-4 text-xs font-mono text-white/50 theme-text-dim">
-                      <span>{card.month}/{card.year}</span>
-                      <span>CVV: {card.cvv}</span>
-                    </div>
+                    <button
+                      onClick={() => copyCard(card, idx)}
+                      className="p-2 rounded-lg hover:bg-white/[0.06] transition-all duration-200 active:scale-95 shrink-0"
+                    >
+                      {copiedIdx === idx ? (
+                        <Check className="w-4 h-4 text-green-500" />
+                      ) : (
+                        <Copy className="w-4 h-4 transition-colors duration-200" style={{ color: 'var(--app-text-dim)' }} />
+                      )}
+                    </button>
                   </div>
-                  <button
-                    onClick={() => copyCard(card, idx)}
-                    className="p-1.5 rounded-lg hover:bg-white/[0.06] transition-colors"
-                  >
-                    {copiedIdx === idx ? (
-                      <Check className="w-4 h-4 text-green-500" />
-                    ) : (
-                      <Copy className="w-4 h-4 text-white/30 theme-text-dim group-hover:text-white/60 theme-text-dim" />
-                    )}
-                  </button>
                 </div>
               </motion.div>
             ))}
@@ -549,19 +566,21 @@ function CheckerTab() {
           <button
             onClick={startCheck}
             disabled={isRunning}
-            className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed text-black font-semibold rounded-lg py-2.5 text-sm transition-colors flex items-center justify-center gap-2"
+            className="flex-1 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 disabled:opacity-50 disabled:cursor-not-allowed text-black font-bold rounded-xl py-3 text-sm transition-all duration-300 flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 active:scale-[0.98]"
           >
             {isRunning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
             {isRunning ? 'Verificando...' : 'Iniciar Check'}
           </button>
           {isRunning && (
-            <button
+            <motion.button
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
               onClick={stopCheck}
-              className="bg-red-500/20 hover:bg-red-500/30 text-red-400 font-semibold rounded-lg px-4 py-2.5 text-sm transition-colors flex items-center gap-2"
+              className="bg-red-500/15 hover:bg-red-500/25 border border-red-500/20 text-red-400 font-bold rounded-xl px-5 py-3 text-sm transition-all duration-200 flex items-center gap-2 active:scale-[0.98]"
             >
               <Square className="w-4 h-4" />
               Detener
-            </button>
+            </motion.button>
           )}
         </div>
       </div>
@@ -569,17 +588,17 @@ function CheckerTab() {
       {/* Stats */}
       {stats.total > 0 && (
         <div className="grid grid-cols-3 gap-2">
-          <div className="bg-[#111113] theme-card rounded-xl border border-white/[0.06] p-3 text-center">
-            <p className="text-lg font-bold text-white theme-text font-mono">{stats.total}</p>
-            <p className="text-[10px] text-white/40 theme-text-dim uppercase">Total</p>
+          <div className="rounded-xl border border-white/[0.06] p-3 text-center" style={{ background: 'var(--app-card)' }}>
+            <p className="text-xl font-bold font-mono" style={{ color: 'var(--app-text)' }}>{stats.total}</p>
+            <p className="text-[10px] uppercase tracking-wider font-medium mt-0.5" style={{ color: 'var(--app-text-dim)' }}>Total</p>
           </div>
-          <div className="bg-[#111113] theme-card rounded-xl border border-green-500/20 p-3 text-center">
-            <p className="text-lg font-bold text-green-500 font-mono">{stats.live}</p>
-            <p className="text-[10px] text-green-500/60 uppercase">Aprobadas</p>
+          <div className="rounded-xl border border-green-500/20 p-3 text-center bg-green-500/5">
+            <p className="text-xl font-bold font-mono text-green-500">{stats.live}</p>
+            <p className="text-[10px] uppercase tracking-wider font-medium mt-0.5 text-green-500/60">Aprobadas</p>
           </div>
-          <div className="bg-[#111113] theme-card rounded-xl border border-red-500/20 p-3 text-center">
-            <p className="text-lg font-bold text-red-500 font-mono">{stats.dead}</p>
-            <p className="text-[10px] text-red-500/60 uppercase">Rechazadas</p>
+          <div className="rounded-xl border border-red-500/20 p-3 text-center bg-red-500/5">
+            <p className="text-xl font-bold font-mono text-red-500">{stats.dead}</p>
+            <p className="text-[10px] uppercase tracking-wider font-medium mt-0.5 text-red-500/60">Rechazadas</p>
           </div>
         </div>
       )}
@@ -587,29 +606,35 @@ function CheckerTab() {
       {/* Live Results */}
       {liveResults.length > 0 && (
         <div className="space-y-2">
-          <h3 className="text-xs font-medium text-green-500/80 uppercase tracking-wider">✓ Aprobadas</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-xs font-medium text-green-500/70 uppercase tracking-wider">Aprobadas</h3>
+            <div className="flex-1 h-px bg-green-500/10" />
+          </div>
           <div className="max-h-48 overflow-y-auto space-y-1.5 custom-scrollbar">
             {liveResults.map((r, i) => (
               <motion.div
                 key={`live-${i}`}
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="bg-green-500/10 border border-green-500/20 rounded-lg px-3 py-2 flex items-center justify-between"
+                className="bg-green-500/5 border border-green-500/20 rounded-xl px-4 py-3 flex items-center justify-between"
               >
                 <div>
-                  <p className="text-xs font-mono text-green-400">{r.cc}</p>
-                  {r.message && <p className="text-[10px] text-green-500/60 mt-0.5">{r.message}</p>}
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <div className="w-2 h-2 rounded-full bg-green-500" />
+                    <p className="text-xs font-mono text-green-400 font-medium">{r.cc}</p>
+                  </div>
+                  {r.message && <p className="text-[10px] text-green-500/50 ml-4">{r.message}</p>}
                   {(r.brand || r.bank) && (
-                    <p className="text-[10px] text-white/30 theme-text-dim mt-0.5">
+                    <p className="text-[10px] ml-4 mt-0.5" style={{ color: 'var(--app-text-dim)' }}>
                       {[r.brand, r.bank].filter(Boolean).join(' · ')}
                     </p>
                   )}
                 </div>
                 <button
                   onClick={() => { navigator.clipboard.writeText(r.cc); toast.success('Copiado') }}
-                  className="p-1 hover:bg-white/[0.06] rounded"
+                  className="p-1.5 hover:bg-green-500/10 rounded-lg transition-colors"
                 >
-                  <Copy className="w-3.5 h-3.5 text-green-500/60" />
+                  <Copy className="w-3.5 h-3.5 text-green-500/50" />
                 </button>
               </motion.div>
             ))}
@@ -620,10 +645,13 @@ function CheckerTab() {
       {/* Dead dots */}
       {dotResults.length > 0 && (
         <div className="space-y-2">
-          <h3 className="text-xs font-medium text-red-500/80 uppercase tracking-wider">✗ Rechazadas</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-xs font-medium text-red-500/70 uppercase tracking-wider">Rechazadas</h3>
+            <div className="flex-1 h-px bg-red-500/10" />
+          </div>
           <div className="flex flex-wrap gap-1.5">
             {dotResults.map((_, i) => (
-              <div key={`dead-${i}`} className="w-2 h-2 rounded-full bg-red-500/40" />
+              <div key={`dead-${i}`} className="w-1.5 h-1.5 rounded-full bg-red-500/30" />
             ))}
           </div>
         </div>
@@ -984,11 +1012,13 @@ function EmailTab() {
                 <Trash2 className="w-4 h-4" />
               </button>
             </div>
-            <div className="flex items-center gap-2 bg-[#09090b] theme-input rounded-lg px-3 py-2.5 border border-white/[0.08]">
-              <Mail className="w-4 h-4 text-amber-500 shrink-0" />
-              <p className="text-sm font-mono text-white/90 theme-text flex-1 truncate">{account.address}</p>
-              <button onClick={copyEmail} className="shrink-0 p-1 rounded hover:bg-white/[0.06]">
-                {copiedEmail ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4 text-white/40 theme-text-dim" />}
+            <div className="flex items-center gap-2.5 rounded-xl px-3.5 py-3 border border-white/[0.08]" style={{ background: 'var(--app-input)' }}>
+              <div className="w-8 h-8 rounded-lg bg-amber-500/15 flex items-center justify-center shrink-0">
+                <Mail className="w-4 h-4 text-amber-500" />
+              </div>
+              <p className="text-sm font-mono flex-1 truncate" style={{ color: 'var(--app-text-90)' }}>{account.address}</p>
+              <button onClick={copyEmail} className="shrink-0 p-2 rounded-lg hover:bg-white/[0.06] transition-all duration-200 active:scale-95">
+                {copiedEmail ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" style={{ color: 'var(--app-text-dim)' }} />}
               </button>
             </div>
             <button
@@ -1007,13 +1037,21 @@ function EmailTab() {
           </>
         ) : (
           <>
-            <div className="text-center py-4">
-              <Mail className="w-10 h-10 text-white/10 mx-auto mb-3" />
-              <p className="text-sm text-white/40 theme-text-dim mb-4">Genera un correo temporal para recibir mensajes</p>
+            <div className="text-center py-8">
+              <div className="relative w-16 h-16 mx-auto mb-4">
+                <div className="absolute inset-0 bg-amber-500/10 rounded-2xl rotate-6" />
+                <div className="relative w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/15 flex items-center justify-center">
+                  <Mail className="w-7 h-7 text-amber-500/50" />
+                </div>
+              </div>
+              <p className="text-sm font-medium mb-1" style={{ color: 'var(--app-text-70)' }}>Correo Temporal</p>
+              <p className="text-xs mb-5 max-w-[220px] mx-auto" style={{ color: 'var(--app-text-dim)' }}>
+                Genera un correo temporal para recibir mensajes
+              </p>
               <button
                 onClick={createEmail}
                 disabled={isCreating}
-                className="bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold rounded-lg px-6 py-2.5 text-sm transition-colors flex items-center justify-center gap-2 mx-auto"
+                className="bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 disabled:opacity-50 text-black font-bold rounded-xl px-8 py-3 text-sm transition-all duration-300 flex items-center justify-center gap-2 mx-auto shadow-lg shadow-amber-500/20 active:scale-[0.98]"
               >
                 {isCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                 {isCreating ? 'Creando...' : 'Generar Correo'}
@@ -1043,17 +1081,25 @@ function EmailTab() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   onClick={() => openMessage(msg)}
-                  className="w-full text-left bg-[#111113] theme-card rounded-lg border border-white/[0.06] p-3 hover:border-white/[0.12] transition-colors"
+                  className="w-full text-left rounded-xl border border-white/[0.06] p-3.5 hover:border-amber-500/20 transition-all duration-200 group"
+                  style={{ background: 'var(--app-card)' }}
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="text-xs font-medium text-white/80 theme-text truncate">
-                        {msg.from?.name || msg.from?.address || 'Desconocido'}
-                      </p>
-                      <p className="text-sm text-white/60 theme-text-dim truncate">{msg.subject || 'Sin asunto'}</p>
-                      {msg.intro && <p className="text-xs text-white/30 theme-text-dim truncate mt-0.5">{msg.intro}</p>}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <div className="w-6 h-6 rounded-full bg-amber-500/15 flex items-center justify-center shrink-0">
+                          <span className="text-[10px] font-bold text-amber-500">
+                            {(msg.from?.name || msg.from?.address || 'D')[0].toUpperCase()}
+                          </span>
+                        </div>
+                        <p className="text-xs font-medium truncate" style={{ color: 'var(--app-text-80)' }}>
+                          {msg.from?.name || msg.from?.address || 'Desconocido'}
+                        </p>
+                      </div>
+                      <p className="text-sm truncate pl-8" style={{ color: 'var(--app-text-60)' }}>{msg.subject || 'Sin asunto'}</p>
+                      {msg.intro && <p className="text-xs truncate pl-8 mt-0.5" style={{ color: 'var(--app-text-dim)' }}>{msg.intro}</p>}
                     </div>
-                    <span className="text-[10px] text-white/20 theme-text-faint shrink-0">
+                    <span className="text-[10px] shrink-0 mt-0.5" style={{ color: 'var(--app-text-faint)' }}>
                       {new Date(msg.createdAt).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
@@ -1213,7 +1259,7 @@ function AddressTab() {
         <button
           onClick={handleGenerate}
           disabled={isGenerating}
-          className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold rounded-lg py-2.5 text-sm transition-colors flex items-center justify-center gap-2"
+          className="w-full bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 disabled:opacity-50 text-black font-bold rounded-xl py-3 text-sm transition-all duration-300 flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 hover:shadow-amber-500/30 active:scale-[0.98]"
         >
           {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <MapPin className="w-4 h-4" />}
           {isGenerating ? 'Generando...' : 'Generar Direcciones'}
@@ -1238,40 +1284,44 @@ function AddressTab() {
             {addresses.map((addr, idx) => (
               <motion.div
                 key={`addr-${idx}-${addr.street}`}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: idx * 0.03 }}
-                className="bg-gradient-to-br from-[#1a1a2e] to-[#111113] theme-gradient-card rounded-xl border border-white/[0.06] p-3.5 group"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: idx * 0.03, duration: 0.3 }}
+                className="relative rounded-xl border border-white/[0.06] overflow-hidden group"
+                style={{ background: 'linear-gradient(135deg, var(--app-card-gradient-from, #1a1a2e), var(--app-card-gradient-to, #111113))' }}
               >
-                <div className="flex items-start justify-between">
-                  <div className="space-y-1.5 min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <MapPin className="w-4 h-4 text-amber-500/70 shrink-0" />
-                      <span className="text-xs uppercase tracking-wider text-white/30 theme-text-dim font-medium truncate">
-                        {addr.country}
-                      </span>
+                <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-amber-500/60" />
+                <div className="p-3.5 pl-4">
+                  <div className="flex items-start justify-between">
+                    <div className="space-y-1.5 min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <MapPin className="w-4 h-4 text-amber-500/70 shrink-0" />
+                        <span className="text-xs uppercase tracking-wider font-medium truncate" style={{ color: 'var(--app-text-dim)' }}>
+                          {addr.country}
+                        </span>
+                      </div>
+                      <p className="text-sm leading-snug" style={{ color: 'var(--app-text-90)' }}>
+                        {addr.street}
+                      </p>
+                      <p className="text-sm leading-snug" style={{ color: 'var(--app-text-70)' }}>
+                        {addr.city}, {addr.state}
+                      </p>
+                      <div className="flex gap-4 text-xs font-mono" style={{ color: 'var(--app-text-dim)' }}>
+                        <span>CP: {addr.postcode}</span>
+                        <span>Tel: {addr.phone}</span>
+                      </div>
                     </div>
-                    <p className="text-sm text-white/90 theme-text leading-snug">
-                      {addr.street}
-                    </p>
-                    <p className="text-sm text-white/70 theme-text leading-snug">
-                      {addr.city}, {addr.state}
-                    </p>
-                    <div className="flex gap-4 text-xs font-mono text-white/50 theme-text-dim">
-                      <span>CP: {addr.postcode}</span>
-                      <span>Tel: {addr.phone}</span>
-                    </div>
+                    <button
+                      onClick={() => copyAddress(addr, idx)}
+                      className="p-2 rounded-lg hover:bg-white/[0.06] transition-all duration-200 active:scale-95 shrink-0 ml-2"
+                    >
+                      {copiedIdx === idx ? (
+                        <Check className="w-4 h-4 text-green-500" />
+                      ) : (
+                        <Copy className="w-4 h-4 transition-colors duration-200" style={{ color: 'var(--app-text-dim)' }} />
+                      )}
+                    </button>
                   </div>
-                  <button
-                    onClick={() => copyAddress(addr, idx)}
-                    className="p-1.5 rounded-lg hover:bg-white/[0.06] transition-colors shrink-0 ml-2"
-                  >
-                    {copiedIdx === idx ? (
-                      <Check className="w-4 h-4 text-green-500" />
-                    ) : (
-                      <Copy className="w-4 h-4 text-white/30 theme-text-dim group-hover:text-white/60 theme-text-dim" />
-                    )}
-                  </button>
                 </div>
               </motion.div>
             ))}
@@ -1361,7 +1411,7 @@ function IbanTab() {
 
         <button
           onClick={handleGenerate}
-          className="w-full bg-amber-500 hover:bg-amber-400 text-black font-semibold rounded-lg py-2.5 text-sm transition-colors flex items-center justify-center gap-2"
+          className="w-full bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-black font-bold rounded-xl py-3 text-sm transition-all duration-300 flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 hover:shadow-amber-500/30 active:scale-[0.98]"
         >
           <Landmark className="w-4 h-4" />
           Generar IBAN
@@ -1386,40 +1436,44 @@ function IbanTab() {
             {ibans.map((item, idx) => (
               <motion.div
                 key={`iban-${idx}-${item.iban}`}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: idx * 0.03 }}
-                className="bg-gradient-to-br from-[#1a1a2e] to-[#111113] theme-gradient-card rounded-xl border border-white/[0.06] p-3.5 group"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: idx * 0.03, duration: 0.3 }}
+                className="relative rounded-xl border border-white/[0.06] overflow-hidden group"
+                style={{ background: 'linear-gradient(135deg, var(--app-card-gradient-from, #1a1a2e), var(--app-card-gradient-to, #111113))' }}
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="space-y-1.5 min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-base">{item.country.flag}</span>
-                      <span className="text-xs uppercase tracking-wider text-white/30 theme-text-dim font-medium truncate">
-                        {item.country.label}
-                      </span>
-                      <span className="text-[10px] font-mono text-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 rounded">
-                        {item.iban.length} chars
-                      </span>
+                <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-amber-500/60" />
+                <div className="p-3.5 pl-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1.5 min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">{item.country.flag}</span>
+                        <span className="text-xs uppercase tracking-wider font-medium truncate" style={{ color: 'var(--app-text-dim)' }}>
+                          {item.country.label}
+                        </span>
+                        <span className="text-[10px] font-mono text-amber-500/50 bg-amber-500/10 px-1.5 py-0.5 rounded-md">
+                          {item.iban.length} chars
+                        </span>
+                      </div>
+                      <p className="text-sm font-mono leading-snug tracking-wide" style={{ color: 'var(--app-text-90)' }}>
+                        {formatIbanLocal(item.iban)}
+                      </p>
+                      <div className="flex gap-3 text-xs font-mono" style={{ color: 'var(--app-text-dim)' }}>
+                        <span>Código: <span className="text-amber-500/70">{item.iban.slice(0, 2)}</span></span>
+                        <span>Check: <span className="text-amber-500/70">{item.iban.slice(2, 4)}</span></span>
+                      </div>
                     </div>
-                    <p className="text-sm font-mono text-white/90 theme-text leading-snug tracking-wide">
-                      {formatIbanLocal(item.iban)}
-                    </p>
-                    <div className="flex gap-3 text-xs font-mono text-white/40 theme-text-dim">
-                      <span>Código: <span className="text-amber-500/70">{item.iban.slice(0, 2)}</span></span>
-                      <span>Check: <span className="text-amber-500/70">{item.iban.slice(2, 4)}</span></span>
-                    </div>
+                    <button
+                      onClick={() => copyIban(item.iban, idx)}
+                      className="p-2 rounded-lg hover:bg-white/[0.06] transition-all duration-200 active:scale-95 shrink-0"
+                    >
+                      {copiedIdx === idx ? (
+                        <Check className="w-4 h-4 text-green-500" />
+                      ) : (
+                        <Copy className="w-4 h-4 transition-colors duration-200" style={{ color: 'var(--app-text-dim)' }} />
+                      )}
+                    </button>
                   </div>
-                  <button
-                    onClick={() => copyIban(item.iban, idx)}
-                    className="p-1.5 rounded-lg hover:bg-white/[0.06] transition-colors shrink-0"
-                  >
-                    {copiedIdx === idx ? (
-                      <Check className="w-4 h-4 text-green-500" />
-                    ) : (
-                      <Copy className="w-4 h-4 text-white/30 theme-text-dim group-hover:text-white/60" />
-                    )}
-                  </button>
                 </div>
               </motion.div>
             ))}
@@ -1547,58 +1601,55 @@ function SettingsTab() {
       </div>
 
       {/* Features */}
-      <div className="bg-[#111113] theme-card rounded-xl border border-white/[0.06] p-4 space-y-3">
-        <h3 className="text-xs font-medium text-white/50 theme-text-dim uppercase tracking-wider">Módulos</h3>
+      <div className="grid grid-cols-2 gap-2">
         {[
-          { icon: CreditCard, label: 'Generador de Tarjetas', desc: 'Genera con el Algoritmo Luhn' },
-          { icon: Search, label: 'CCS Checker', desc: 'Verificación de ccs en tiempo real' },
-          { icon: Tv, label: 'IPTV Checker', desc: 'Verificación de líneas iptv' },
-          { icon: Mail, label: 'Correo Temporal', desc: 'Genera un correo temporal' },
-          { icon: MapPin, label: 'Generador de Direcciones', desc: 'Genera direcciones aleatorias por país' },
-          { icon: Landmark, label: 'Generador de IBAN', desc: 'Genera IBANs válidos por país con MOD-97' },
+          { icon: CreditCard, label: 'Tarjetas', desc: 'Algoritmo Luhn', color: 'text-blue-400', bg: 'bg-blue-500/10' },
+          { icon: Landmark, label: 'IBAN', desc: 'MOD-97 válido', color: 'text-purple-400', bg: 'bg-purple-500/10' },
+          { icon: Search, label: 'CCS Checker', desc: 'Verificación real', color: 'text-green-400', bg: 'bg-green-500/10' },
+          { icon: Tv, label: 'IPTV', desc: 'Checker + Player', color: 'text-red-400', bg: 'bg-red-500/10' },
+          { icon: Mail, label: 'Correo', desc: 'Temporales', color: 'text-amber-400', bg: 'bg-amber-500/10' },
+          { icon: MapPin, label: 'Direcciones', desc: 'Por país', color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
         ].map((feature, i) => (
-          <div key={i} className="flex items-center gap-3 py-1">
-            <div className="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center">
-              <feature.icon className="w-4 h-4 text-amber-500" />
+          <div key={i} className="rounded-xl border border-white/[0.06] p-3 space-y-1.5 hover:border-white/[0.12] transition-colors" style={{ background: 'var(--app-card)' }}>
+            <div className={`w-8 h-8 rounded-lg ${feature.bg} flex items-center justify-center`}>
+              <feature.icon className={`w-4 h-4 ${feature.color}`} />
             </div>
-            <div>
-              <p className="text-sm font-medium">{feature.label}</p>
-              <p className="text-xs text-white/40 theme-text-dim">{feature.desc}</p>
-            </div>
+            <p className="text-xs font-semibold" style={{ color: 'var(--app-text)' }}>{feature.label}</p>
+            <p className="text-[10px]" style={{ color: 'var(--app-text-dim)' }}>{feature.desc}</p>
           </div>
         ))}
       </div>
 
       {/* About */}
-      <div className="bg-[#111113] theme-card rounded-xl border border-white/[0.06] p-4 space-y-2">
-        <div className="flex items-center gap-2 mb-2">
-          <Info className="w-4 h-4 text-white/30 theme-text-dim" />
-          <h3 className="text-xs font-medium text-white/50 theme-text-dim uppercase tracking-wider">Acerca de</h3>
+      <div className="rounded-xl border border-white/[0.06] p-4 space-y-3" style={{ background: 'var(--app-card)' }}>
+        <div className="flex items-center gap-2">
+          <Info className="w-4 h-4" style={{ color: 'var(--app-text-dim)' }} />
+          <h3 className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--app-text-dim)' }}>Acerca de</h3>
         </div>
-        <p className="text-xs text-white/40 theme-text-dim leading-relaxed">
+        <p className="text-xs leading-relaxed" style={{ color: 'var(--app-text-dim)' }}>
           HJTools X v1.0 — Plataforma con Generador de Tarjetas, CCS Checker, IPTV Checker, Correo Temporal, Generador de Direcciones y Generador de IBAN, diseñada para verificación y utilidades inteligentes en tiempo real.
         </p>
-        <div className="flex items-center gap-2 pt-2">
+        <div className="flex items-center gap-2">
           <Zap className="w-3 h-3 text-amber-500/40" />
-          <span className="text-xs text-white/20 theme-text-faint">Hecho por HacheJota</span>
+          <span className="text-xs" style={{ color: 'var(--app-text-faint)' }}>Hecho por HacheJota</span>
         </div>
-        <div className="flex items-center gap-3 pt-3">
+        <div className="flex items-center gap-4 pt-2">
           <a
             href="https://wa.me/524437863111"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1.5 text-xs text-green-400/60 hover:text-green-400 transition-colors"
+            className="flex items-center gap-2 text-xs text-green-400/70 hover:text-green-400 transition-colors"
           >
-            <Phone className="w-3 h-3" />
+            <Phone className="w-3.5 h-3.5" />
             WhatsApp
           </a>
           <a
             href="https://t.me/HcheJotaA_Bot"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1.5 text-xs text-sky-400/60 hover:text-sky-400 transition-colors"
+            className="flex items-center gap-2 text-xs text-sky-400/70 hover:text-sky-400 transition-colors"
           >
-            <MessageCircle className="w-3 h-3" />
+            <MessageCircle className="w-3.5 h-3.5" />
             Telegram
           </a>
         </div>
