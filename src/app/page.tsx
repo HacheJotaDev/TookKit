@@ -6,7 +6,7 @@ import {
   CreditCard, Search, Tv, Mail, Settings, Copy, Check, Play,
   Trash2, RefreshCw, ChevronDown, Info, Moon, Sun,
   X, Loader2, Square, Send, ExternalLink, Zap, Upload, AlertTriangle,
-  MessageCircle, Phone, Share2, MapPin
+  MessageCircle, Phone, Share2, MapPin, Landmark
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { IptvChecker } from '@/components/iptv/iptv-checker'
@@ -16,7 +16,7 @@ import { apiFetch } from '@/lib/api-config'
 // TYPES
 // ============================================================
 
-type TabId = 'cards' | 'checker' | 'iptv' | 'email' | 'address' | 'settings'
+type TabId = 'cards' | 'checker' | 'iptv' | 'email' | 'address' | 'iban' | 'settings'
 
 interface GeneratedCard {
   number: string
@@ -197,6 +197,7 @@ const tabs: { id: TabId; label: string; icon: typeof CreditCard }[] = [
   { id: 'iptv', label: 'IPTV', icon: Tv },
   { id: 'email', label: 'Correo', icon: Mail },
   { id: 'address', label: 'Direcciones', icon: MapPin },
+  { id: 'iban', label: 'IBAN', icon: Landmark },
   { id: 'settings', label: 'Ajustes', icon: Settings },
 ]
 
@@ -222,7 +223,7 @@ export default function Home() {
 
       {/* Content Area */}
       <main className="flex-1 overflow-y-auto pb-20">
-        {(['cards', 'checker', 'iptv', 'email', 'address', 'settings'] as TabId[]).map(tabId => (
+        {(['cards', 'checker', 'iptv', 'email', 'address', 'iban', 'settings'] as TabId[]).map(tabId => (
           <div
             key={tabId}
             className={activeTab === tabId ? 'px-4 py-4' : 'hidden'}
@@ -232,6 +233,7 @@ export default function Home() {
             {tabId === 'iptv' && <IptvTab />}
             {tabId === 'email' && <EmailTab />}
             {tabId === 'address' && <AddressTab />}
+            {tabId === 'iban' && <IbanTab />}
             {tabId === 'settings' && <SettingsTab />}
           </div>
         ))}
@@ -1304,6 +1306,300 @@ function AddressTab() {
 }
 
 // ============================================================
+// IBAN GENERATOR DATA
+// ============================================================
+
+interface IbanCountry {
+  code: string        // ISO 3166-1 alpha-2
+  label: string
+  flag: string
+  length: number      // total IBAN length
+  bbanFormat: string  // e.g. "4a,4n,10n,2n" = 4 alpha + 4 numeric + 10 numeric + 2 numeric
+}
+
+// BBAN format keys: a=alpha (A-Z), n=numeric (0-9), c=alphanumeric
+const IBAN_COUNTRIES: IbanCountry[] = [
+  { code: 'AL', label: 'Albania',             flag: '🇦🇱', length: 28, bbanFormat: '8n,16c' },
+  { code: 'AD', label: 'Andorra',             flag: '🇦🇩', length: 20, bbanFormat: '4n,4n,12c' },
+  { code: 'AT', label: 'Austria',             flag: '🇦🇹', length: 20, bbanFormat: '5n,11n' },
+  { code: 'AZ', label: 'Azerbaiyán',          flag: '🇦🇿', length: 28, bbanFormat: '4a,20c' },
+  { code: 'BH', label: 'Baréin',              flag: '🇧🇭', length: 22, bbanFormat: '4a,14c' },
+  { code: 'BY', label: 'Bielorrusia',         flag: '🇧🇾', length: 28, bbanFormat: '4c,20c' },
+  { code: 'BE', label: 'Bélgica',             flag: '🇧🇪', length: 16, bbanFormat: '3n,7n,2n' },
+  { code: 'BA', label: 'Bosnia',              flag: '🇧🇦', length: 20, bbanFormat: '3n,3n,8n,2n' },
+  { code: 'BR', label: 'Brasil',              flag: '🇧🇷', length: 29, bbanFormat: '8n,5n,10n,1a,1c' },
+  { code: 'BG', label: 'Bulgaria',            flag: '🇧🇬', length: 22, bbanFormat: '4a,6n,8c' },
+  { code: 'CR', label: 'Costa Rica',          flag: '🇨🇷', length: 22, bbanFormat: '4n,14n' },
+  { code: 'HR', label: 'Croacia',             flag: '🇭🇷', length: 21, bbanFormat: '7n,10n' },
+  { code: 'CY', label: 'Chipre',              flag: '🇨🇾', length: 28, bbanFormat: '3n,5n,16c' },
+  { code: 'CZ', label: 'Rep. Checa',          flag: '🇨🇿', length: 24, bbanFormat: '4n,6n,10n' },
+  { code: 'DK', label: 'Dinamarca',           flag: '🇩🇰', length: 18, bbanFormat: '4n,9n,1n' },
+  { code: 'DO', label: 'Rep. Dominicana',     flag: '🇩🇴', length: 28, bbanFormat: '4c,20n' },
+  { code: 'TL', label: 'Timor Oriental',      flag: '🇹🇱', length: 23, bbanFormat: '3n,14n,2n' },
+  { code: 'EE', label: 'Estonia',             flag: '🇪🇪', length: 20, bbanFormat: '2n,2n,11n,1n' },
+  { code: 'FO', label: 'Islas Feroe',         flag: '🇫🇴', length: 18, bbanFormat: '4n,9n,1n' },
+  { code: 'FI', label: 'Finlandia',           flag: '🇫🇮', length: 18, bbanFormat: '3n,11n' },
+  { code: 'FR', label: 'Francia',             flag: '🇫🇷', length: 27, bbanFormat: '5n,5n,11n,2n' },
+  { code: 'GE', label: 'Georgia',             flag: '🇬🇪', length: 22, bbanFormat: '2a,16n' },
+  { code: 'DE', label: 'Alemania',            flag: '🇩🇪', length: 22, bbanFormat: '8n,10n' },
+  { code: 'GI', label: 'Gibraltar',           flag: '🇬🇮', length: 23, bbanFormat: '4a,15c' },
+  { code: 'GR', label: 'Grecia',              flag: '🇬🇷', length: 27, bbanFormat: '3n,4n,16c' },
+  { code: 'GL', label: 'Groenlandia',         flag: '🇬🇱', length: 18, bbanFormat: '4n,9n,1n' },
+  { code: 'GT', label: 'Guatemala',           flag: '🇬🇹', length: 28, bbanFormat: '4c,20c' },
+  { code: 'HU', label: 'Hungría',             flag: '🇭🇺', length: 28, bbanFormat: '3n,4n,1n,15n,1n' },
+  { code: 'IS', label: 'Islandia',            flag: '🇮🇸', length: 26, bbanFormat: '4n,6n,10n' },
+  { code: 'IE', label: 'Irlanda',             flag: '🇮🇪', length: 22, bbanFormat: '4a,6n,8n' },
+  { code: 'IL', label: 'Israel',              flag: '🇮🇱', length: 23, bbanFormat: '3n,3n,13n' },
+  { code: 'IT', label: 'Italia',              flag: '🇮🇹', length: 27, bbanFormat: '1a,5n,5n,12c' },
+  { code: 'JO', label: 'Jordania',            flag: '🇯🇴', length: 30, bbanFormat: '4a,4n,18c' },
+  { code: 'KZ', label: 'Kazajistán',          flag: '🇰🇿', length: 20, bbanFormat: '3n,13c' },
+  { code: 'XK', label: 'Kosovo',              flag: '🇽🇰', length: 20, bbanFormat: '4n,10n,2n' },
+  { code: 'KW', label: 'Kuwait',              flag: '🇰🇼', length: 30, bbanFormat: '4a,22c' },
+  { code: 'LV', label: 'Letonia',             flag: '🇱🇻', length: 21, bbanFormat: '4a,13c' },
+  { code: 'LB', label: 'Líbano',              flag: '🇱🇧', length: 28, bbanFormat: '4n,20c' },
+  { code: 'LI', label: 'Liechtenstein',       flag: '🇱🇮', length: 21, bbanFormat: '5n,12c' },
+  { code: 'LT', label: 'Lituania',            flag: '🇱🇹', length: 20, bbanFormat: '5n,11n' },
+  { code: 'LU', label: 'Luxemburgo',          flag: '🇱🇺', length: 20, bbanFormat: '3n,13c' },
+  { code: 'MK', label: 'Macedonia del Norte', flag: '🇲🇰', length: 19, bbanFormat: '3n,10n,2n' },
+  { code: 'MT', label: 'Malta',               flag: '🇲🇹', length: 31, bbanFormat: '4a,5n,18c' },
+  { code: 'MR', label: 'Mauritania',          flag: '🇲🇷', length: 27, bbanFormat: '5n,5n,11n,2n' },
+  { code: 'MU', label: 'Mauricio',            flag: '🇲🇺', length: 30, bbanFormat: '4a,2n,2n,12n,3n,3a' },
+  { code: 'MD', label: 'Moldavia',            flag: '🇲🇩', length: 24, bbanFormat: '2c,18c' },
+  { code: 'MC', label: 'Mónaco',              flag: '🇲🇨', length: 27, bbanFormat: '5n,5n,11n,2n' },
+  { code: 'ME', label: 'Montenegro',          flag: '🇲🇪', length: 22, bbanFormat: '3n,13n,2n' },
+  { code: 'NL', label: 'Países Bajos',        flag: '🇳🇱', length: 18, bbanFormat: '4a,10n' },
+  { code: 'NO', label: 'Noruega',             flag: '🇳🇴', length: 15, bbanFormat: '4n,6n,1n' },
+  { code: 'PK', label: 'Pakistán',            flag: '🇵🇰', length: 24, bbanFormat: '4a,16c' },
+  { code: 'PS', label: 'Palestina',           flag: '🇵🇸', length: 29, bbanFormat: '4a,21c' },
+  { code: 'PL', label: 'Polonia',             flag: '🇵🇱', length: 28, bbanFormat: '8n,16n' },
+  { code: 'PT', label: 'Portugal',            flag: '🇵🇹', length: 25, bbanFormat: '4n,4n,11n,2n' },
+  { code: 'QA', label: 'Qatar',               flag: '🇶🇦', length: 29, bbanFormat: '4a,21c' },
+  { code: 'RO', label: 'Rumania',             flag: '🇷🇴', length: 24, bbanFormat: '4a,16c' },
+  { code: 'LC', label: 'Santa Lucía',         flag: '🇱🇨', length: 32, bbanFormat: '4a,16c,3a' },
+  { code: 'SM', label: 'San Marino',          flag: '🇸🇲', length: 27, bbanFormat: '3n,5n,12c' },
+  { code: 'SA', label: 'Arabia Saudita',      flag: '🇸🇦', length: 24, bbanFormat: '2n,18c' },
+  { code: 'RS', label: 'Serbia',              flag: '🇷🇸', length: 22, bbanFormat: '3n,13n,2n' },
+  { code: 'SC', label: 'Seychelles',          flag: '🇸🇨', length: 31, bbanFormat: '4a,2n,2n,16n,3a' },
+  { code: 'SK', label: 'Eslovaquia',          flag: '🇸🇰', length: 24, bbanFormat: '4n,6n,10n' },
+  { code: 'SI', label: 'Eslovenia',           flag: '🇸🇮', length: 19, bbanFormat: '5n,8n,2n' },
+  { code: 'ES', label: 'España',              flag: '🇪🇸', length: 24, bbanFormat: '4n,4n,1n,1n,10n' },
+  { code: 'SE', label: 'Suecia',              flag: '🇸🇪', length: 24, bbanFormat: '3n,16n,1n' },
+  { code: 'CH', label: 'Suiza',               flag: '🇨🇭', length: 21, bbanFormat: '5n,12c' },
+  { code: 'TN', label: 'Túnez',               flag: '🇹🇳', length: 24, bbanFormat: '2n,3n,13n,2n' },
+  { code: 'TR', label: 'Turquía',             flag: '🇹🇷', length: 26, bbanFormat: '5n,1n,16c' },
+  { code: 'UA', label: 'Ucrania',             flag: '🇺🇦', length: 29, bbanFormat: '2a,6n,19c' },
+  { code: 'AE', label: 'Emiratos Árabes',     flag: '🇦🇪', length: 23, bbanFormat: '3n,16n' },
+  { code: 'GB', label: 'Reino Unido',         flag: '🇬🇧', length: 22, bbanFormat: '4a,6n,8n' },
+  { code: 'VA', label: 'Ciudad del Vaticano', flag: '🇻🇦', length: 22, bbanFormat: '3n,15n' },
+  { code: 'VG', label: 'Islas Vírgenes Brit.', flag: '🇻🇬', length: 24, bbanFormat: '4a,16n' },
+]
+
+// Parse BBAN format string like "4n,6n,10n" into [{count, type}]
+function parseBbanFormat(fmt: string): { count: number; type: 'a' | 'n' | 'c' }[] {
+  return fmt.split(',').map(part => {
+    const match = part.trim().match(/^(\d+)([anc])$/)
+    if (!match) return { count: 0, type: 'n' }
+    return { count: parseInt(match[1], 10), type: match[2] as 'a' | 'n' | 'c' }
+  })
+}
+
+// Generate random chars for a given type
+function randomChars(type: 'a' | 'n' | 'c', count: number): string {
+  let result = ''
+  for (let i = 0; i < count; i++) {
+    if (type === 'n') {
+      result += Math.floor(Math.random() * 10).toString()
+    } else if (type === 'a') {
+      result += String.fromCharCode(65 + Math.floor(Math.random() * 26))
+    } else {
+      // c = alphanumeric
+      if (Math.random() < 0.5) {
+        result += Math.floor(Math.random() * 10).toString()
+      } else {
+        result += String.fromCharCode(65 + Math.floor(Math.random() * 26))
+      }
+    }
+  }
+  return result
+}
+
+// Generate a random BBAN from the country's format
+function generateBban(country: IbanCountry): string {
+  const parts = parseBbanFormat(country.bbanFormat)
+  return parts.map(p => randomChars(p.type, p.count)).join('')
+}
+
+// Calculate IBAN check digits using MOD-97
+function calculateIbanCheckDigits(countryCode: string, bban: string): string {
+  // Move country code + "00" to the end
+  const rearranged = (bban + countryCode + '00').toUpperCase()
+  // Replace letters with numbers (A=10, B=11, ..., Z=35)
+  const numeric = rearranged.split('').map(ch => {
+    const code = ch.charCodeAt(0)
+    if (code >= 65 && code <= 90) return String(code - 55) // A=10
+    return ch
+  }).join('')
+  // MOD-97
+  const remainder = BigInt(numeric) % 97n
+  const check = 98 - Number(remainder)
+  return String(check).padStart(2, '0')
+}
+
+// Generate a complete valid-structured IBAN
+function generateIban(country: IbanCountry): string {
+  const bban = generateBban(country)
+  const checkDigits = calculateIbanCheckDigits(country.code, bban)
+  return `${country.code}${checkDigits}${bban}`
+}
+
+// ============================================================
+// TAB: IBAN GENERATOR
+// ============================================================
+
+function IbanTab() {
+  const [selectedCountry, setSelectedCountry] = useState('ES')
+  const [quantity, setQuantity] = useState('5')
+  const [ibans, setIbans] = useState<{ iban: string; country: IbanCountry }[]>([])
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
+  const [copiedAll, setCopiedAll] = useState(false)
+
+  const handleGenerate = useCallback(() => {
+    const country = IBAN_COUNTRIES.find(c => c.code === selectedCountry)
+    if (!country) {
+      toast.error('Selecciona un país válido')
+      return
+    }
+    const qty = Math.min(Math.max(parseInt(quantity) || 1, 1), 100)
+    const generated: { iban: string; country: IbanCountry }[] = []
+    for (let i = 0; i < qty; i++) {
+      generated.push({ iban: generateIban(country), country })
+    }
+    setIbans(generated)
+    toast.success(`${qty} IBAN${qty > 1 ? 's' : ''} generado${qty > 1 ? 's' : ''}`)
+  }, [selectedCountry, quantity])
+
+  const formatIban = (iban: string) => {
+    return iban.replace(/(.{4})/g, '$1 ').trim()
+  }
+
+  const copyIban = useCallback(async (iban: string, idx: number) => {
+    await navigator.clipboard.writeText(iban)
+    setCopiedIdx(idx)
+    toast.success('IBAN copiado')
+    setTimeout(() => setCopiedIdx(null), 1500)
+  }, [])
+
+  const copyAll = useCallback(async () => {
+    if (ibans.length === 0) return
+    const text = ibans.map(i => i.iban).join('\n')
+    await navigator.clipboard.writeText(text)
+    setCopiedAll(true)
+    toast.success(`${ibans.length} IBANs copiados`)
+    setTimeout(() => setCopiedAll(false), 2000)
+  }, [ibans])
+
+  return (
+    <div className="space-y-4">
+      {/* Country & Quantity Selector */}
+      <div className="bg-[#111113] theme-card rounded-xl border border-white/[0.06] p-4 space-y-3">
+        <label className="text-xs font-medium text-white/50 theme-text-dim uppercase tracking-wider">País</label>
+        <select
+          value={selectedCountry}
+          onChange={(e) => setSelectedCountry(e.target.value)}
+          className="w-full bg-[#09090b] theme-input border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white theme-text focus:outline-none focus:border-amber-500/50 transition-colors"
+        >
+          {IBAN_COUNTRIES.map(c => (
+            <option key={c.code} value={c.code}>{c.flag} {c.label} ({c.length} caracteres)</option>
+          ))}
+        </select>
+
+        <div className="flex gap-2">
+          <div className="flex-1">
+            <label className="text-xs font-medium text-white/50 theme-text-dim uppercase tracking-wider">Cantidad</label>
+            <input
+              type="number"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              min="1"
+              max="100"
+              placeholder="5"
+              className="w-full bg-[#09090b] theme-input border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white theme-text placeholder-white/20 focus:outline-none focus:border-amber-500/50 font-mono transition-colors"
+            />
+          </div>
+        </div>
+
+        <button
+          onClick={handleGenerate}
+          className="w-full bg-amber-500 hover:bg-amber-400 text-black font-semibold rounded-lg py-2.5 text-sm transition-colors flex items-center justify-center gap-2"
+        >
+          <Landmark className="w-4 h-4" />
+          Generar IBAN
+        </button>
+      </div>
+
+      {/* Results */}
+      {ibans.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-white/40 theme-text-dim">{ibans.length} resultado{ibans.length > 1 ? 's' : ''}</span>
+            <button
+              onClick={copyAll}
+              className="flex items-center gap-1.5 text-xs text-amber-500 hover:text-amber-400 transition-colors"
+            >
+              {copiedAll ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+              Copiar Todo
+            </button>
+          </div>
+
+          <div className="max-h-[60vh] overflow-y-auto space-y-2 custom-scrollbar">
+            {ibans.map((item, idx) => (
+              <motion.div
+                key={`iban-${idx}-${item.iban}`}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: idx * 0.03 }}
+                className="bg-gradient-to-br from-[#1a1a2e] to-[#111113] theme-gradient-card rounded-xl border border-white/[0.06] p-3.5 group"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-1.5 min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">{item.country.flag}</span>
+                      <span className="text-xs uppercase tracking-wider text-white/30 theme-text-dim font-medium truncate">
+                        {item.country.label}
+                      </span>
+                      <span className="text-[10px] font-mono text-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 rounded">
+                        {item.iban.length} chars
+                      </span>
+                    </div>
+                    <p className="text-sm font-mono text-white/90 theme-text leading-snug tracking-wide">
+                      {formatIban(item.iban)}
+                    </p>
+                    <div className="flex gap-3 text-xs font-mono text-white/40 theme-text-dim">
+                      <span>Código: <span className="text-amber-500/70">{item.iban.slice(0, 2)}</span></span>
+                      <span>Check: <span className="text-amber-500/70">{item.iban.slice(2, 4)}</span></span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => copyIban(item.iban, idx)}
+                    className="p-1.5 rounded-lg hover:bg-white/[0.06] transition-colors shrink-0"
+                  >
+                    {copiedIdx === idx ? (
+                      <Check className="w-4 h-4 text-green-500" />
+                    ) : (
+                      <Copy className="w-4 h-4 text-white/30 theme-text-dim group-hover:text-white/60" />
+                    )}
+                  </button>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ============================================================
 // TAB 6: SETTINGS
 // ============================================================
 
@@ -1428,6 +1724,7 @@ function SettingsTab() {
           { icon: Tv, label: 'IPTV Checker', desc: 'Verificación de líneas iptv' },
           { icon: Mail, label: 'Correo Temporal', desc: 'Genera un correo temporal' },
           { icon: MapPin, label: 'Generador de Direcciones', desc: 'Genera direcciones aleatorias por país' },
+          { icon: Landmark, label: 'Generador de IBAN', desc: 'Genera IBANs válidos por país con MOD-97' },
         ].map((feature, i) => (
           <div key={i} className="flex items-center gap-3 py-1">
             <div className="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center">
@@ -1448,7 +1745,7 @@ function SettingsTab() {
           <h3 className="text-xs font-medium text-white/50 theme-text-dim uppercase tracking-wider">Acerca de</h3>
         </div>
         <p className="text-xs text-white/40 theme-text-dim leading-relaxed">
-          HJTools X v1.0 — Plataforma con Generador de Tarjetas, CCS Checker, IPTV Checker, Correo Temporal y Generador de Direcciones, diseñada para verificación y utilidades inteligentes en tiempo real.
+          HJTools X v1.0 — Plataforma con Generador de Tarjetas, CCS Checker, IPTV Checker, Correo Temporal, Generador de Direcciones y Generador de IBAN, diseñada para verificación y utilidades inteligentes en tiempo real.
         </p>
         <div className="flex items-center gap-2 pt-2">
           <Zap className="w-3 h-3 text-amber-500/40" />
