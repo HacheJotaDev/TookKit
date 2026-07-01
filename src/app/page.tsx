@@ -688,26 +688,7 @@ function EmailTab() {
         }
       } catch {}
 
-      // Then try server recovery
-      try {
-        const res = await apiFetch('/api/email/recover')
-        const data = await res.json()
-        if (data.address && data.token && data.id) {
-          const recovered: EmailAccount = {
-            address: data.address,
-            token: data.token,
-            id: data.id,
-            provider: data.provider || 'mail.tm',
-          }
-          setAccount(recovered)
-          // Also save to localStorage for faster recovery next time
-          try {
-            localStorage.setItem('toolkit_email', JSON.stringify(recovered))
-          } catch {}
-        }
-      } catch {
-        // Recovery failed — user will need to create a new email
-      }
+      // Email recovery is 100% client-side via localStorage (no server needed)
 
       setIsRecovering(false)
     }
@@ -824,12 +805,7 @@ function EmailTab() {
       setSelectedMsg(null)
       toast.success('Correo temporal creado')
 
-      // Save to server DB in background (non-blocking)
-      apiFetch('/api/email/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ address, token, id: accountId, provider }),
-      }).catch(() => {})
+      // Email is fully client-side — no server DB save needed
 
     } catch {
       toast.error('Error al crear correo. Verifica tu conexión.')
