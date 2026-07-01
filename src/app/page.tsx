@@ -11,6 +11,7 @@ import {
 import { toast } from 'sonner'
 import { IptvChecker } from '@/components/iptv/iptv-checker'
 import { apiFetch } from '@/lib/api-config'
+import { IBAN_COUNTRIES, generateIban, formatIban, type IbanCountry } from '@/lib/iban-data'
 
 // ============================================================
 // TYPES
@@ -1306,151 +1307,7 @@ function AddressTab() {
 }
 
 // ============================================================
-// IBAN GENERATOR DATA
-// ============================================================
-
-interface IbanCountry {
-  code: string        // ISO 3166-1 alpha-2
-  label: string
-  flag: string
-  length: number      // total IBAN length
-  bbanFormat: string  // e.g. "4a,4n,10n,2n" = 4 alpha + 4 numeric + 10 numeric + 2 numeric
-}
-
-// BBAN format keys: a=alpha (A-Z), n=numeric (0-9), c=alphanumeric
-const IBAN_COUNTRIES: IbanCountry[] = [
-  { code: 'AL', label: 'Albania',             flag: '🇦🇱', length: 28, bbanFormat: '8n,16c' },
-  { code: 'AD', label: 'Andorra',             flag: '🇦🇩', length: 20, bbanFormat: '4n,4n,12c' },
-  { code: 'AT', label: 'Austria',             flag: '🇦🇹', length: 20, bbanFormat: '5n,11n' },
-  { code: 'AZ', label: 'Azerbaiyán',          flag: '🇦🇿', length: 28, bbanFormat: '4a,20c' },
-  { code: 'BH', label: 'Baréin',              flag: '🇧🇭', length: 22, bbanFormat: '4a,14c' },
-  { code: 'BY', label: 'Bielorrusia',         flag: '🇧🇾', length: 28, bbanFormat: '4c,20c' },
-  { code: 'BE', label: 'Bélgica',             flag: '🇧🇪', length: 16, bbanFormat: '3n,7n,2n' },
-  { code: 'BA', label: 'Bosnia',              flag: '🇧🇦', length: 20, bbanFormat: '3n,3n,8n,2n' },
-  { code: 'BR', label: 'Brasil',              flag: '🇧🇷', length: 29, bbanFormat: '8n,5n,10n,1a,1c' },
-  { code: 'BG', label: 'Bulgaria',            flag: '🇧🇬', length: 22, bbanFormat: '4a,6n,8c' },
-  { code: 'CR', label: 'Costa Rica',          flag: '🇨🇷', length: 22, bbanFormat: '4n,14n' },
-  { code: 'HR', label: 'Croacia',             flag: '🇭🇷', length: 21, bbanFormat: '7n,10n' },
-  { code: 'CY', label: 'Chipre',              flag: '🇨🇾', length: 28, bbanFormat: '3n,5n,16c' },
-  { code: 'CZ', label: 'Rep. Checa',          flag: '🇨🇿', length: 24, bbanFormat: '4n,6n,10n' },
-  { code: 'DK', label: 'Dinamarca',           flag: '🇩🇰', length: 18, bbanFormat: '4n,9n,1n' },
-  { code: 'DO', label: 'Rep. Dominicana',     flag: '🇩🇴', length: 28, bbanFormat: '4c,20n' },
-  { code: 'TL', label: 'Timor Oriental',      flag: '🇹🇱', length: 23, bbanFormat: '3n,14n,2n' },
-  { code: 'EE', label: 'Estonia',             flag: '🇪🇪', length: 20, bbanFormat: '2n,2n,11n,1n' },
-  { code: 'FO', label: 'Islas Feroe',         flag: '🇫🇴', length: 18, bbanFormat: '4n,9n,1n' },
-  { code: 'FI', label: 'Finlandia',           flag: '🇫🇮', length: 18, bbanFormat: '3n,11n' },
-  { code: 'FR', label: 'Francia',             flag: '🇫🇷', length: 27, bbanFormat: '5n,5n,11n,2n' },
-  { code: 'GE', label: 'Georgia',             flag: '🇬🇪', length: 22, bbanFormat: '2a,16n' },
-  { code: 'DE', label: 'Alemania',            flag: '🇩🇪', length: 22, bbanFormat: '8n,10n' },
-  { code: 'GI', label: 'Gibraltar',           flag: '🇬🇮', length: 23, bbanFormat: '4a,15c' },
-  { code: 'GR', label: 'Grecia',              flag: '🇬🇷', length: 27, bbanFormat: '3n,4n,16c' },
-  { code: 'GL', label: 'Groenlandia',         flag: '🇬🇱', length: 18, bbanFormat: '4n,9n,1n' },
-  { code: 'GT', label: 'Guatemala',           flag: '🇬🇹', length: 28, bbanFormat: '4c,20c' },
-  { code: 'HU', label: 'Hungría',             flag: '🇭🇺', length: 28, bbanFormat: '3n,4n,1n,15n,1n' },
-  { code: 'IS', label: 'Islandia',            flag: '🇮🇸', length: 26, bbanFormat: '4n,6n,10n' },
-  { code: 'IE', label: 'Irlanda',             flag: '🇮🇪', length: 22, bbanFormat: '4a,6n,8n' },
-  { code: 'IL', label: 'Israel',              flag: '🇮🇱', length: 23, bbanFormat: '3n,3n,13n' },
-  { code: 'IT', label: 'Italia',              flag: '🇮🇹', length: 27, bbanFormat: '1a,5n,5n,12c' },
-  { code: 'JO', label: 'Jordania',            flag: '🇯🇴', length: 30, bbanFormat: '4a,4n,18c' },
-  { code: 'KZ', label: 'Kazajistán',          flag: '🇰🇿', length: 20, bbanFormat: '3n,13c' },
-  { code: 'XK', label: 'Kosovo',              flag: '🇽🇰', length: 20, bbanFormat: '4n,10n,2n' },
-  { code: 'KW', label: 'Kuwait',              flag: '🇰🇼', length: 30, bbanFormat: '4a,22c' },
-  { code: 'LV', label: 'Letonia',             flag: '🇱🇻', length: 21, bbanFormat: '4a,13c' },
-  { code: 'LB', label: 'Líbano',              flag: '🇱🇧', length: 28, bbanFormat: '4n,20c' },
-  { code: 'LI', label: 'Liechtenstein',       flag: '🇱🇮', length: 21, bbanFormat: '5n,12c' },
-  { code: 'LT', label: 'Lituania',            flag: '🇱🇹', length: 20, bbanFormat: '5n,11n' },
-  { code: 'LU', label: 'Luxemburgo',          flag: '🇱🇺', length: 20, bbanFormat: '3n,13c' },
-  { code: 'MK', label: 'Macedonia del Norte', flag: '🇲🇰', length: 19, bbanFormat: '3n,10n,2n' },
-  { code: 'MT', label: 'Malta',               flag: '🇲🇹', length: 31, bbanFormat: '4a,5n,18c' },
-  { code: 'MR', label: 'Mauritania',          flag: '🇲🇷', length: 27, bbanFormat: '5n,5n,11n,2n' },
-  { code: 'MU', label: 'Mauricio',            flag: '🇲🇺', length: 30, bbanFormat: '4a,2n,2n,12n,3n,3a' },
-  { code: 'MD', label: 'Moldavia',            flag: '🇲🇩', length: 24, bbanFormat: '2c,18c' },
-  { code: 'MC', label: 'Mónaco',              flag: '🇲🇨', length: 27, bbanFormat: '5n,5n,11n,2n' },
-  { code: 'ME', label: 'Montenegro',          flag: '🇲🇪', length: 22, bbanFormat: '3n,13n,2n' },
-  { code: 'NL', label: 'Países Bajos',        flag: '🇳🇱', length: 18, bbanFormat: '4a,10n' },
-  { code: 'NO', label: 'Noruega',             flag: '🇳🇴', length: 15, bbanFormat: '4n,6n,1n' },
-  { code: 'PK', label: 'Pakistán',            flag: '🇵🇰', length: 24, bbanFormat: '4a,16c' },
-  { code: 'PS', label: 'Palestina',           flag: '🇵🇸', length: 29, bbanFormat: '4a,21c' },
-  { code: 'PL', label: 'Polonia',             flag: '🇵🇱', length: 28, bbanFormat: '8n,16n' },
-  { code: 'PT', label: 'Portugal',            flag: '🇵🇹', length: 25, bbanFormat: '4n,4n,11n,2n' },
-  { code: 'QA', label: 'Qatar',               flag: '🇶🇦', length: 29, bbanFormat: '4a,21c' },
-  { code: 'RO', label: 'Rumania',             flag: '🇷🇴', length: 24, bbanFormat: '4a,16c' },
-  { code: 'LC', label: 'Santa Lucía',         flag: '🇱🇨', length: 32, bbanFormat: '4a,16c,3a' },
-  { code: 'SM', label: 'San Marino',          flag: '🇸🇲', length: 27, bbanFormat: '3n,5n,12c' },
-  { code: 'SA', label: 'Arabia Saudita',      flag: '🇸🇦', length: 24, bbanFormat: '2n,18c' },
-  { code: 'RS', label: 'Serbia',              flag: '🇷🇸', length: 22, bbanFormat: '3n,13n,2n' },
-  { code: 'SC', label: 'Seychelles',          flag: '🇸🇨', length: 31, bbanFormat: '4a,2n,2n,16n,3a' },
-  { code: 'SK', label: 'Eslovaquia',          flag: '🇸🇰', length: 24, bbanFormat: '4n,6n,10n' },
-  { code: 'SI', label: 'Eslovenia',           flag: '🇸🇮', length: 19, bbanFormat: '5n,8n,2n' },
-  { code: 'ES', label: 'España',              flag: '🇪🇸', length: 24, bbanFormat: '4n,4n,1n,1n,10n' },
-  { code: 'SE', label: 'Suecia',              flag: '🇸🇪', length: 24, bbanFormat: '3n,16n,1n' },
-  { code: 'CH', label: 'Suiza',               flag: '🇨🇭', length: 21, bbanFormat: '5n,12c' },
-  { code: 'TN', label: 'Túnez',               flag: '🇹🇳', length: 24, bbanFormat: '2n,3n,13n,2n' },
-  { code: 'TR', label: 'Turquía',             flag: '🇹🇷', length: 26, bbanFormat: '5n,1n,16c' },
-  { code: 'UA', label: 'Ucrania',             flag: '🇺🇦', length: 29, bbanFormat: '2a,6n,19c' },
-  { code: 'AE', label: 'Emiratos Árabes',     flag: '🇦🇪', length: 23, bbanFormat: '3n,16n' },
-  { code: 'GB', label: 'Reino Unido',         flag: '🇬🇧', length: 22, bbanFormat: '4a,6n,8n' },
-  { code: 'VA', label: 'Ciudad del Vaticano', flag: '🇻🇦', length: 22, bbanFormat: '3n,15n' },
-  { code: 'VG', label: 'Islas Vírgenes Brit.', flag: '🇻🇬', length: 24, bbanFormat: '4a,16n' },
-]
-
-// Parse BBAN format string like "4n,6n,10n" into [{count, type}]
-function parseBbanFormat(fmt: string): { count: number; type: 'a' | 'n' | 'c' }[] {
-  return fmt.split(',').map(part => {
-    const match = part.trim().match(/^(\d+)([anc])$/)
-    if (!match) return { count: 0, type: 'n' }
-    return { count: parseInt(match[1], 10), type: match[2] as 'a' | 'n' | 'c' }
-  })
-}
-
-// Generate random chars for a given type
-function randomChars(type: 'a' | 'n' | 'c', count: number): string {
-  let result = ''
-  for (let i = 0; i < count; i++) {
-    if (type === 'n') {
-      result += Math.floor(Math.random() * 10).toString()
-    } else if (type === 'a') {
-      result += String.fromCharCode(65 + Math.floor(Math.random() * 26))
-    } else {
-      // c = alphanumeric
-      if (Math.random() < 0.5) {
-        result += Math.floor(Math.random() * 10).toString()
-      } else {
-        result += String.fromCharCode(65 + Math.floor(Math.random() * 26))
-      }
-    }
-  }
-  return result
-}
-
-// Generate a random BBAN from the country's format
-function generateBban(country: IbanCountry): string {
-  const parts = parseBbanFormat(country.bbanFormat)
-  return parts.map(p => randomChars(p.type, p.count)).join('')
-}
-
-// Calculate IBAN check digits using MOD-97
-function calculateIbanCheckDigits(countryCode: string, bban: string): string {
-  // Move country code + "00" to the end
-  const rearranged = (bban + countryCode + '00').toUpperCase()
-  // Replace letters with numbers (A=10, B=11, ..., Z=35)
-  const numeric = rearranged.split('').map(ch => {
-    const code = ch.charCodeAt(0)
-    if (code >= 65 && code <= 90) return String(code - 55) // A=10
-    return ch
-  }).join('')
-  // MOD-97
-  const remainder = BigInt(numeric) % 97n
-  const check = 98 - Number(remainder)
-  return String(check).padStart(2, '0')
-}
-
-// Generate a complete valid-structured IBAN
-function generateIban(country: IbanCountry): string {
-  const bban = generateBban(country)
-  const checkDigits = calculateIbanCheckDigits(country.code, bban)
-  return `${country.code}${checkDigits}${bban}`
-}
+// IBAN data (countries, generation logic, real bank codes) imported from @/lib/iban-data
 
 // ============================================================
 // TAB: IBAN GENERATOR
@@ -1478,9 +1335,7 @@ function IbanTab() {
     toast.success(`${qty} IBAN${qty > 1 ? 's' : ''} generado${qty > 1 ? 's' : ''}`)
   }, [selectedCountry, quantity])
 
-  const formatIban = (iban: string) => {
-    return iban.replace(/(.{4})/g, '$1 ').trim()
-  }
+  const formatIbanLocal = (iban: string) => formatIban(iban)
 
   const copyIban = useCallback(async (iban: string, idx: number) => {
     await navigator.clipboard.writeText(iban)
@@ -1572,7 +1427,7 @@ function IbanTab() {
                       </span>
                     </div>
                     <p className="text-sm font-mono text-white/90 theme-text leading-snug tracking-wide">
-                      {formatIban(item.iban)}
+                      {formatIbanLocal(item.iban)}
                     </p>
                     <div className="flex gap-3 text-xs font-mono text-white/40 theme-text-dim">
                       <span>Código: <span className="text-amber-500/70">{item.iban.slice(0, 2)}</span></span>
