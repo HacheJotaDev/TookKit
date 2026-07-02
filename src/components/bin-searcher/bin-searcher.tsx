@@ -357,16 +357,24 @@ export function BinSearcher() {
             exit={{ opacity: 0, y: -12 }}
             className="space-y-4"
           >
-            {/* Header breadcrumb */}
-            <div className="flex items-center gap-2 text-[11px]" style={{ color: 'var(--app-text-dim)' }}>
-              <span>{selectedCountry?.flag}</span>
-              <span>{selectedCountry?.name}</span>
-              {bankName && (
-                <>
-                  <ChevronRight className="w-3 h-3" />
-                  <span className="text-purple-400 font-medium">{bankName}</span>
-                </>
-              )}
+            {/* Bank header */}
+            <div className="flex items-center gap-3 p-3 rounded-xl border"
+              style={{
+                background: 'linear-gradient(135deg, rgba(168,85,247,0.08), var(--app-card, #111113))',
+                borderColor: 'rgba(168,85,247,0.15)',
+              }}
+            >
+              <div className="w-9 h-9 rounded-lg bg-purple-500/10 flex items-center justify-center shrink-0">
+                <Landmark className="w-4 h-4 text-purple-400" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold truncate text-purple-400">
+                  {bankName || selectedCountry?.name}
+                </p>
+                <p className="text-[11px]" style={{ color: 'var(--app-text-dim)' }}>
+                  {filteredBins.length} de {bins.length} BINs
+                </p>
+              </div>
             </div>
 
             {/* Filters */}
@@ -406,22 +414,6 @@ export function BinSearcher() {
                     ))}
                   </select>
                 )}
-              </div>
-            )}
-
-            {/* Bank name tag */}
-            {bankName && bankName !== 'Todos' && (
-              <div className="flex items-center gap-2 px-3 py-2 rounded-xl border"
-                style={{
-                  background: 'linear-gradient(135deg, rgba(168,85,247,0.08), var(--app-card, #111113))',
-                  borderColor: 'rgba(168,85,247,0.15)',
-                }}
-              >
-                <Landmark className="w-3.5 h-3.5 text-purple-400" />
-                <span className="text-xs font-semibold text-purple-400 truncate">{bankName}</span>
-                <span className="text-[10px] ml-auto shrink-0" style={{ color: 'var(--app-text-dim)' }}>
-                  {filteredBins.length} de {bins.length} BINs
-                </span>
               </div>
             )}
 
