@@ -4,7 +4,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Search, ChevronRight, ArrowLeft, Copy, Check, Loader2,
-  CreditCard, Building2, Globe, Filter, X, Database, Landmark
+  CreditCard, Building2, Globe, Filter, X, Landmark
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { BIN_COUNTRIES, type BinCountry } from '@/lib/bin-country-data'
@@ -312,36 +312,6 @@ export function BinSearcher() {
               />
             </div>
 
-            {/* Option: See all BINs without filter */}
-            {bins.length > 0 && (
-              <motion.button
-                whileTap={{ scale: 0.97 }}
-                onClick={() => {
-                  setBankName('Todos')
-                  setFilterNetwork('all')
-                  setFilterType('all')
-                  setBinSearchQuery('')
-                  setStep('bins')
-                }}
-                className="w-full flex items-center gap-3 p-3.5 rounded-xl border transition-all duration-200 hover:border-amber-500/30"
-                style={{
-                  background: 'linear-gradient(135deg, rgba(245,158,11,0.1), var(--app-card, #111113))',
-                  borderColor: 'rgba(245,158,11,0.2)',
-                }}
-              >
-                <div className="w-9 h-9 rounded-lg bg-amber-500/15 flex items-center justify-center">
-                  <Database className="w-4 h-4 text-amber-400" />
-                </div>
-                <div className="text-left">
-                  <p className="text-xs font-semibold text-amber-400">Ver todos los BINs</p>
-                  <p className="text-[10px]" style={{ color: 'var(--app-text-dim)' }}>
-                    {bins.length} BINs de {selectedCountry?.name}
-                  </p>
-                </div>
-                <ChevronRight className="w-4 h-4 ml-auto text-amber-500/50" />
-              </motion.button>
-            )}
-
             {/* Bank list */}
             <div className="space-y-1.5 max-h-[50vh] overflow-y-auto custom-scrollbar pb-2">
               {filteredBanks
@@ -387,22 +357,16 @@ export function BinSearcher() {
             exit={{ opacity: 0, y: -12 }}
             className="space-y-4"
           >
-            {/* Header with country/bank info */}
-            <div className="flex items-center gap-3 p-3 rounded-xl border"
-              style={{
-                background: 'linear-gradient(135deg, rgba(245,158,11,0.08), var(--app-card, #111113))',
-                borderColor: 'rgba(245,158,11,0.15)',
-              }}
-            >
-              <span className="text-2xl">{selectedCountry?.flag}</span>
-              <div className="min-w-0">
-                <p className="text-sm font-semibold truncate" style={{ color: 'var(--app-text)' }}>
-                  {bankName || selectedCountry?.name}
-                </p>
-                <p className="text-[11px]" style={{ color: 'var(--app-text-dim)' }}>
-                  {filteredBins.length} de {bins.length} BINs
-                </p>
-              </div>
+            {/* Header breadcrumb */}
+            <div className="flex items-center gap-2 text-[11px]" style={{ color: 'var(--app-text-dim)' }}>
+              <span>{selectedCountry?.flag}</span>
+              <span>{selectedCountry?.name}</span>
+              {bankName && (
+                <>
+                  <ChevronRight className="w-3 h-3" />
+                  <span className="text-purple-400 font-medium">{bankName}</span>
+                </>
+              )}
             </div>
 
             {/* Filters */}
@@ -442,6 +406,22 @@ export function BinSearcher() {
                     ))}
                   </select>
                 )}
+              </div>
+            )}
+
+            {/* Bank name tag */}
+            {bankName && bankName !== 'Todos' && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl border"
+                style={{
+                  background: 'linear-gradient(135deg, rgba(168,85,247,0.08), var(--app-card, #111113))',
+                  borderColor: 'rgba(168,85,247,0.15)',
+                }}
+              >
+                <Landmark className="w-3.5 h-3.5 text-purple-400" />
+                <span className="text-xs font-semibold text-purple-400 truncate">{bankName}</span>
+                <span className="text-[10px] ml-auto shrink-0" style={{ color: 'var(--app-text-dim)' }}>
+                  {filteredBins.length} de {bins.length} BINs
+                </span>
               </div>
             )}
 
@@ -514,16 +494,6 @@ export function BinSearcher() {
                         )}
                       </div>
                     </div>
-
-                    {/* Bank name */}
-                    {bankName && bankName !== 'Todos' && (
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <Landmark className="w-3 h-3 text-purple-400/60" />
-                        <span className="text-[10px] font-medium text-purple-400/70 max-w-[100px] truncate">
-                          {bankName}
-                        </span>
-                      </div>
-                    )}
 
                     {/* Copy button */}
                     <button
