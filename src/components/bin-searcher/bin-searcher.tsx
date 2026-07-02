@@ -59,6 +59,24 @@ function getNetworkBg(network: string): string {
   return NETWORK_BG[network.toUpperCase()] || 'bg-gray-500/10'
 }
 
+// Module-level client cache (persists across re-renders & unmounts)
+const clientCache = new Map<string, { data: Record<string, unknown>; timestamp: number }>()
+const CLIENT_CACHE_TTL = 30 * 60 * 1000 // 30 min
+
+function getFromCache(key: string): Record<string, unknown> | null {
+  const entry = clientCache.get(key)
+  if (!entry) return null
+  if (Date.now() - entry.timestamp > CLIENT_CACHE_TTL) {
+    clientCache.delete(key)
+    return null
+  }
+  return entry.data
+}
+
+function setCache(key: string, data: Record<string, unknown>) {
+  clientCache.set(key, { data, timestamp: Date.now() })
+}
+
 export function BinSearcher() {
   const [step, setStep] = useState<Step>('country')
   const [searchQuery, setSearchQuery] = useState('')
@@ -101,6 +119,19 @@ export function BinSearcher() {
     abortRef.current = controller
 
     try {
+      // Check client cache first
+      const cacheKey = `country:${country.slug}`
+      const cached = getFromCache(cacheKey)
+      if (cached) {
+        setSelectedCountry(country)
+        setBanks((cached.banks as BankInfo[]) || [])
+        setBins((cached.bins as BinEntry[]) || [])
+        setBankName('')
+        setStep('bank')
+        setLoading(false)
+        return
+      }
+
       const res = await fetch(`/api/bin-country?country=${country.slug}`, {
         signal: controller.signal,
       })
@@ -108,6 +139,7 @@ export function BinSearcher() {
 
       if (!res.ok) throw new Error(data.error || 'Error fetching data')
 
+      setCache(cacheKey, data)
       setSelectedCountry(country)
       setBanks(data.banks || [])
       setBins(data.bins || [])
@@ -128,6 +160,20 @@ export function BinSearcher() {
     abortRef.current = controller
 
     try {
+      // Check client cache first
+      const cacheKey = `bank:${selectedCountry?.slug}:${bank.slug}`
+      const cached = getFromCache(cacheKey)
+      if (cached) {
+        setBins((cached.bins as BinEntry[]) || [])
+        setBankName(bank.name)
+        setFilterNetwork('all')
+        setFilterType('all')
+        setBinSearchQuery('')
+        setStep('bins')
+        setLoading(false)
+        return
+      }
+
       const res = await fetch(`/api/bin-country?country=${selectedCountry?.slug}&bank=${bank.slug}`, {
         signal: controller.signal,
       })
@@ -135,6 +181,7 @@ export function BinSearcher() {
 
       if (!res.ok) throw new Error(data.error || 'Error fetching data')
 
+      setCache(cacheKey, data)
       setBins(data.bins || [])
       setBankName(bank.name)
       setFilterNetwork('all')
@@ -176,8 +223,7 @@ export function BinSearcher() {
             <button
               onClick={() => {
                 if (s === 'country') { setStep('country'); setSelectedCountry(null); setBanks([]); setBins([]) }
-                else if (s === 'bank' && selectedCountry) { setStep('bank'); setBins([]) }
-                else if (s === 'bins') setStep('bins')
+                else if (s === 'bank' && selectedCountry) { setStep('bank'); setBins([]); setBankName('') }
               }}
               className={`text-xs font-medium transition-colors ${
                 step === s ? 'text-amber-500' : ''

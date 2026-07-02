@@ -204,7 +204,11 @@ export async function GET(req: Request) {
       }
 
       cache.set(cacheKey, { data, timestamp: Date.now() })
-      return NextResponse.json(data)
+      return NextResponse.json(data, {
+        headers: {
+          'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=7200',
+        },
+      })
     } else {
       // ── Fetch country page ──
       const countryUrl = `https://www.freebinchecker.com/${country}-bin-list`
@@ -229,7 +233,11 @@ export async function GET(req: Request) {
       }
 
       cache.set(cacheKey, { data, timestamp: Date.now() })
-      return NextResponse.json(data)
+      return NextResponse.json(data, {
+        headers: {
+          'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=7200',
+        },
+      })
     }
   } catch (error) {
     console.error('BIN lookup error:', error)
