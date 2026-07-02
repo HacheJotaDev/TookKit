@@ -22,7 +22,8 @@ const binCache = new Map<string, { country_name: string }>()
 // TYPES
 // ============================================================
 
-type TabId = 'cards' | 'checker' | 'iptv' | 'email' | 'address' | 'iban' | 'settings'
+type TabId = 'cards' | 'checker' | 'tools' | 'settings'
+type ToolId = 'iptv' | 'email' | 'address' | 'iban'
 
 interface GeneratedCard {
   number: string
@@ -200,12 +201,53 @@ function detectCardType(bin: string): string {
 const tabs: { id: TabId; label: string; icon: typeof CreditCard }[] = [
   { id: 'cards', label: 'Tarjetas', icon: CreditCard },
   { id: 'checker', label: 'Checker', icon: Search },
-  { id: 'iptv', label: 'IPTV', icon: Tv },
-  { id: 'email', label: 'Correo', icon: Mail },
-  { id: 'address', label: 'Direcciones', icon: MapPin },
-  { id: 'iban', label: 'IBAN', icon: Landmark },
+  { id: 'tools', label: 'Herramientas', icon: Zap },
   { id: 'settings', label: 'Ajustes', icon: Settings },
 ]
+
+const toolCards: { id: ToolId; label: string; desc: string; icon: typeof CreditCard; color: string; bg: string }[] = [
+  { id: 'iptv', label: 'IPTV', desc: 'Checker + Player', icon: Tv, color: 'text-red-400', bg: 'bg-red-500/10' },
+  { id: 'email', label: 'Correo', desc: 'Temporales', icon: Mail, color: 'text-amber-400', bg: 'bg-amber-500/10' },
+  { id: 'address', label: 'Direcciones', desc: 'Por país', icon: MapPin, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
+  { id: 'iban', label: 'IBAN', desc: 'MOD-97 válido', icon: Landmark, color: 'text-purple-400', bg: 'bg-purple-500/10' },
+]
+
+// ============================================================
+// TOOLS GRID
+// ============================================================
+
+function ToolsGrid({ onOpen }: { onOpen: (id: ToolId) => void }) {
+  return (
+    <div className="space-y-5 pt-2">
+      <div className="text-center">
+        <h2 className="text-sm font-semibold" style={{ color: 'var(--app-text)' }}>Herramientas</h2>
+        <p className="text-[11px] mt-1" style={{ color: 'var(--app-text-dim)' }}>Selecciona una herramienta</p>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {toolCards.map((tool) => {
+          const Icon = tool.icon
+          return (
+            <motion.button
+              key={tool.id}
+              whileTap={{ scale: 0.96 }}
+              onClick={() => onOpen(tool.id)}
+              className="relative overflow-hidden rounded-2xl border p-4 text-left space-y-3 transition-all duration-200 hover:border-white/[0.12] active:scale-[0.97]"
+              style={{ background: 'var(--app-card)', borderColor: 'var(--app-card-border)' }}
+            >
+              <div className={`w-10 h-10 rounded-xl ${tool.bg} flex items-center justify-center`}>
+                <Icon className={`w-5 h-5 ${tool.color}`} />
+              </div>
+              <div>
+                <p className="text-sm font-semibold" style={{ color: 'var(--app-text)' }}>{tool.label}</p>
+                <p className="text-[11px] mt-0.5" style={{ color: 'var(--app-text-dim)' }}>{tool.desc}</p>
+              </div>
+            </motion.button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
 
 // ============================================================
 // MAIN APP COMPONENT
@@ -213,41 +255,73 @@ const tabs: { id: TabId; label: string; icon: typeof CreditCard }[] = [
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<TabId>('cards')
+  const [activeTool, setActiveTool] = useState<ToolId | null>(null)
+
+  const headerTitle = activeTab === 'tools' && activeTool
+    ? toolCards.find(t => t.id === activeTool)?.label || 'Herramientas'
+    : null
 
   return (
     <div className="min-h-screen theme-text flex flex-col" style={{ background: 'var(--app-bg)', color: 'var(--app-text)' }}>
       {/* Header */}
       <header className="sticky top-0 z-40 backdrop-blur-xl border-b px-4 py-3" style={{ background: 'var(--app-header)', borderColor: 'var(--app-card-border)' }}>
         <div className="flex items-center justify-center gap-3">
-          <div className="relative">
-            <div className="absolute -inset-1.5 bg-amber-500/20 rounded-xl blur-md" />
-            <img src="/logo.svg" alt="HJTools X" className="relative w-7 h-7 rounded-lg" />
-          </div>
-          <div className="flex items-baseline gap-1.5">
-            <h1 className="text-lg font-bold tracking-tight">
-              <span className="text-amber-500">HJTools</span>
-            </h1>
-            <span className="text-[10px] font-bold text-amber-500/60 bg-amber-500/10 px-1.5 py-0.5 rounded-md tracking-widest">X</span>
-          </div>
+          {headerTitle && (
+            <button onClick={() => setActiveTool(null)} className="absolute left-4 p-1.5 -ml-1 rounded-xl hover:bg-white/[0.06] transition-colors">
+              <ChevronDown className="w-4 h-4 rotate-90" style={{ color: 'var(--app-text-dim)' }} />
+            </button>
+          )}
+          {headerTitle ? (
+            <h1 className="text-sm font-semibold" style={{ color: 'var(--app-text)' }}>{headerTitle}</h1>
+          ) : (
+            <>
+              <div className="relative">
+                <div className="absolute -inset-1.5 bg-amber-500/20 rounded-xl blur-md" />
+                <img src="/logo.svg" alt="HJTools X" className="relative w-7 h-7 rounded-lg" />
+              </div>
+              <div className="flex items-baseline gap-1.5">
+                <h1 className="text-lg font-bold tracking-tight">
+                  <span className="text-amber-500">HJTools</span>
+                </h1>
+                <span className="text-[10px] font-bold text-amber-500/60 bg-amber-500/10 px-1.5 py-0.5 rounded-md tracking-widest">X</span>
+              </div>
+            </>
+          )}
         </div>
       </header>
 
       {/* Content Area */}
       <main className="flex-1 overflow-y-auto pb-20">
-        {(['cards', 'checker', 'address', 'email', 'iban', 'iptv', 'settings'] as TabId[]).map(tabId => (
+        {(['cards', 'checker', 'settings'] as TabId[]).map(tabId => (
           <div
             key={tabId}
             className={activeTab === tabId ? 'px-4 py-4' : 'hidden'}
           >
             {tabId === 'cards' && <CardsTab />}
             {tabId === 'checker' && <CheckerTab />}
-            {tabId === 'iptv' && <IptvTab />}
-            {tabId === 'email' && <EmailTab />}
-            {tabId === 'address' && <AddressTab />}
-            {tabId === 'iban' && <IbanTab />}
             {tabId === 'settings' && <SettingsTab />}
           </div>
         ))}
+        <div className={activeTab === 'tools' ? 'px-4 py-4' : 'hidden'}>
+          {!activeTool ? (
+            <ToolsGrid onOpen={setActiveTool} />
+          ) : (
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTool}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -12 }}
+                transition={{ duration: 0.2 }}
+              >
+                {activeTool === 'iptv' && <IptvTab />}
+                {activeTool === 'email' && <EmailTab />}
+                {activeTool === 'address' && <AddressTab />}
+                {activeTool === 'iban' && <IbanTab />}
+              </motion.div>
+            </AnimatePresence>
+          )}
+        </div>
       </main>
 
       {/* Bottom Navigation Bar */}
@@ -1638,30 +1712,6 @@ function SettingsTab() {
             />
           </button>
         </div>
-      </div>
-
-      {/* Tools */}
-      <div className="flex items-center gap-2 px-1">
-        <Zap className="w-4 h-4 text-amber-500/50" />
-        <h3 className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--app-text-dim)' }}>Herramientas</h3>
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        {[
-          { icon: CreditCard, label: 'Tarjetas', desc: 'Algoritmo Luhn', color: 'text-blue-400', bg: 'bg-blue-500/10' },
-          { icon: Landmark, label: 'IBAN', desc: 'MOD-97 válido', color: 'text-purple-400', bg: 'bg-purple-500/10' },
-          { icon: Search, label: 'CCS Checker', desc: 'Verificación real', color: 'text-green-400', bg: 'bg-green-500/10' },
-          { icon: Tv, label: 'IPTV', desc: 'Checker + Player', color: 'text-red-400', bg: 'bg-red-500/10' },
-          { icon: Mail, label: 'Correo', desc: 'Temporales', color: 'text-amber-400', bg: 'bg-amber-500/10' },
-          { icon: MapPin, label: 'Direcciones', desc: 'Por país', color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
-        ].map((feature, i) => (
-          <div key={i} className="rounded-xl border border-white/[0.06] p-3 space-y-1.5 hover:border-white/[0.12] transition-colors" style={{ background: 'var(--app-card)' }}>
-            <div className={`w-8 h-8 rounded-lg ${feature.bg} flex items-center justify-center`}>
-              <feature.icon className={`w-4 h-4 ${feature.color}`} />
-            </div>
-            <p className="text-xs font-semibold" style={{ color: 'var(--app-text)' }}>{feature.label}</p>
-            <p className="text-[10px]" style={{ color: 'var(--app-text-dim)' }}>{feature.desc}</p>
-          </div>
-        ))}
       </div>
 
       {/* About */}
