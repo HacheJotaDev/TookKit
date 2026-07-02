@@ -26,6 +26,7 @@ const T: Record<Lang, Record<string, string>> = {
     'nav.tarjetas': 'Tarjetas', 'nav.checker': 'Checker', 'nav.herramientas': 'Herramientas', 'nav.ajustes': 'Ajustes',
     'tools.title': 'Herramientas', 'tools.subtitle': 'Selecciona una herramienta',
     'cards.bin': 'BIN / Plantilla', 'cards.generar': 'Generar', 'cards.resultados': 'resultados',
+    'cards.mes': 'Mes', 'cards.ano': 'Año',
     'cards.copiar_todo': 'Copiar Todo', 'cards.copiado': 'Copiado al portapapeles',
     'cards.tarjetas_copiadas': 'tarjetas copiadas', 'cards.ingresa_bin': 'Ingresa un BIN válido',
     'cards.generada': 'tarjeta generada', 'cards.generadas': 'tarjetas generadas',
@@ -61,12 +62,18 @@ const T: Record<Lang, Record<string, string>> = {
     'set.copiar_link': 'Copiar Link', 'set.portapapeles': 'Copiar al portapapeles', 'set.copiado': 'Copiado!',
     'set.idioma': 'Idioma', 'set.idioma_desc': 'Seleccionar idioma',
     'set.pantalla': 'Pantalla activa', 'set.pantalla_desc': 'Evitar que se apague',
-    'set.pantalla_no': 'No soportado en este navegador',
+    'set.pantalla_no': 'No soportado en esta app',
+    'tool.iptv': 'IPTV', 'tool.iptv_desc': 'Checker',
+    'tool.email': 'Correo', 'tool.email_desc': 'Generador',
+    'tool.address': 'Direcciones', 'tool.address_desc': 'Generador',
+    'tool.iban': 'IBAN', 'tool.iban_desc': 'Generador',
+    'set.about_desc': 'HJTools X — Generador de Tarjetas, CCS Checker, IPTV Checker, Generador de Correo, Direcciones e IBAN.',
   },
   en: {
-    'nav.tarjetas': 'Tarjetas', 'nav.checker': 'Checker', 'nav.herramientas': 'Herramientas', 'nav.ajustes': 'Ajustes',
-    'tools.title': 'Herramientas', 'tools.subtitle': 'Select a tool',
+    'nav.tarjetas': 'Cards', 'nav.checker': 'Checker', 'nav.herramientas': 'Tools', 'nav.ajustes': 'Settings',
+    'tools.title': 'Tools', 'tools.subtitle': 'Select a tool',
     'cards.bin': 'BIN / Template', 'cards.generar': 'Generate', 'cards.resultados': 'results',
+    'cards.mes': 'Month', 'cards.ano': 'Year',
     'cards.copiar_todo': 'Copy All', 'cards.copiado': 'Copied to clipboard',
     'cards.tarjetas_copiadas': 'cards copied', 'cards.ingresa_bin': 'Enter a valid BIN',
     'cards.generada': 'card generated', 'cards.generadas': 'cards generated',
@@ -102,12 +109,18 @@ const T: Record<Lang, Record<string, string>> = {
     'set.copiar_link': 'Copy Link', 'set.portapapeles': 'Copy to clipboard', 'set.copiado': 'Copied!',
     'set.idioma': 'Language', 'set.idioma_desc': 'Select language',
     'set.pantalla': 'Keep screen on', 'set.pantalla_desc': 'Prevent screen off',
-    'set.pantalla_no': 'Not supported on this browser',
+    'set.pantalla_no': 'Not supported on this app',
+    'tool.iptv': 'IPTV', 'tool.iptv_desc': 'Checker',
+    'tool.email': 'Email', 'tool.email_desc': 'Generator',
+    'tool.address': 'Addresses', 'tool.address_desc': 'Generator',
+    'tool.iban': 'IBAN', 'tool.iban_desc': 'Generator',
+    'set.about_desc': 'HJTools X — Card Generator, CCS Checker, IPTV Checker, Email Generator, Addresses & IBAN.',
   },
   pt: {
-    'nav.tarjetas': 'Tarjetas', 'nav.checker': 'Checker', 'nav.herramientas': 'Ferramentas', 'nav.ajustes': 'Ajustes',
+    'nav.tarjetas': 'Cartões', 'nav.checker': 'Checker', 'nav.herramientas': 'Ferramentas', 'nav.ajustes': 'Configurações',
     'tools.title': 'Ferramentas', 'tools.subtitle': 'Selecione uma ferramenta',
     'cards.bin': 'BIN / Modelo', 'cards.generar': 'Gerar', 'cards.resultados': 'resultados',
+    'cards.mes': 'Mês', 'cards.ano': 'Ano',
     'cards.copiar_todo': 'Copiar Tudo', 'cards.copiado': 'Copiado para a área de transferência',
     'cards.tarjetas_copiadas': 'cartões copiados', 'cards.ingresa_bin': 'Insira um BIN válido',
     'cards.generada': 'cartão gerado', 'cards.generadas': 'cartões gerados',
@@ -143,7 +156,12 @@ const T: Record<Lang, Record<string, string>> = {
     'set.copiar_link': 'Copiar Link', 'set.portapapeles': 'Copiar para a área de transferência', 'set.copiado': 'Copiado!',
     'set.idioma': 'Idioma', 'set.idioma_desc': 'Selecionar idioma',
     'set.pantalla': 'Tela ativa', 'set.pantalla_desc': 'Evitar que a tela desligue',
-    'set.pantalla_no': 'Não suportado neste navegador',
+    'set.pantalla_no': 'Não suportado neste app',
+    'tool.iptv': 'IPTV', 'tool.iptv_desc': 'Checker',
+    'tool.email': 'Email', 'tool.email_desc': 'Gerador',
+    'tool.address': 'Endereços', 'tool.address_desc': 'Gerador',
+    'tool.iban': 'IBAN', 'tool.iban_desc': 'Gerador',
+    'set.about_desc': 'HJTools X — Gerador de Cartões, CCS Checker, IPTV Checker, Gerador de Email, Endereços e IBAN.',
   },
 }
 
@@ -347,11 +365,11 @@ const TAB_KEYS: { id: TabId; key: string; icon: typeof CreditCard }[] = [
   { id: 'settings', key: 'nav.ajustes', icon: Settings },
 ]
 
-const toolCards: { id: ToolId; label: string; desc: string; icon: typeof CreditCard; color: string; bg: string }[] = [
-  { id: 'iptv', label: 'IPTV', desc: 'Checker', icon: Tv, color: 'text-red-400', bg: 'bg-red-500/10' },
-  { id: 'email', label: 'Correo', desc: 'Generador', icon: Mail, color: 'text-amber-400', bg: 'bg-amber-500/10' },
-  { id: 'address', label: 'Direcciones', desc: 'Generador', icon: MapPin, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
-  { id: 'iban', label: 'IBAN', desc: 'Generador', icon: Landmark, color: 'text-purple-400', bg: 'bg-purple-500/10' },
+const toolCards: { id: ToolId; labelKey: string; descKey: string; icon: typeof CreditCard; color: string; bg: string }[] = [
+  { id: 'iptv', labelKey: 'tool.iptv', descKey: 'tool.iptv_desc', icon: Tv, color: 'text-red-400', bg: 'bg-red-500/10' },
+  { id: 'email', labelKey: 'tool.email', descKey: 'tool.email_desc', icon: Mail, color: 'text-amber-400', bg: 'bg-amber-500/10' },
+  { id: 'address', labelKey: 'tool.address', descKey: 'tool.address_desc', icon: MapPin, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
+  { id: 'iban', labelKey: 'tool.iban', descKey: 'tool.iban_desc', icon: Landmark, color: 'text-purple-400', bg: 'bg-purple-500/10' },
 ]
 
 // ============================================================
@@ -381,8 +399,8 @@ function ToolsGrid({ onOpen }: { onOpen: (id: ToolId) => void }) {
                 <Icon className={`w-5 h-5 ${tool.color}`} />
               </div>
               <div>
-                <p className="text-sm font-semibold" style={{ color: 'var(--app-text)' }}>{tool.label}</p>
-                <p className="text-[11px] mt-0.5" style={{ color: 'var(--app-text-dim)' }}>{tool.desc}</p>
+                <p className="text-sm font-semibold" style={{ color: 'var(--app-text)' }}>{t(tool.labelKey)}</p>
+                <p className="text-[11px] mt-0.5" style={{ color: 'var(--app-text-dim)' }}>{t(tool.descKey)}</p>
               </div>
             </motion.button>
           )
@@ -402,7 +420,7 @@ function HomeInner() {
   const [activeTool, setActiveTool] = useState<ToolId | null>(null)
 
   const headerTitle = activeTab === 'tools' && activeTool
-    ? toolCards.find(tc => tc.id === activeTool)?.label || 'Herramientas'
+    ? t(toolCards.find(tc => tc.id === activeTool)?.labelKey || 'tools.title')
     : null
 
   return (
@@ -1999,7 +2017,7 @@ function SettingsTab() {
           <h3 className="text-[11px] font-medium uppercase tracking-wider" style={{ color: 'var(--app-text-dim)' }}>{t('set.acerca')}</h3>
         </div>
         <p className="text-[11px] leading-relaxed" style={{ color: 'var(--app-text-dim)' }}>
-          HJTools X — Generador de Tarjetas, CCS Checker, IPTV Checker, Generador de Correo, Direcciones e IBAN.
+          {t('set.about_desc')}
         </p>
         <div className="flex items-center gap-2">
           <Zap className="w-3 h-3 text-amber-500/40" />
