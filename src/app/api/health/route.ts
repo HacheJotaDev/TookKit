@@ -13,9 +13,16 @@ export async function GET() {
     dbStatus = 'error'
   }
 
-  return NextResponse.json({
-    status: 'ok',
-    database: dbStatus,
-    timestamp: new Date().toISOString(),
-  })
+  return NextResponse.json(
+    {
+      status: 'ok',
+      database: dbStatus,
+      timestamp: new Date().toISOString(),
+    },
+    {
+      headers: {
+        'Cache-Control': 'public, s-maxage=30', // Cache for 30s at edge
+      },
+    },
+  )
 }

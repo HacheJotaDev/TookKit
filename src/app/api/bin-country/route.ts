@@ -21,9 +21,9 @@ interface CountryBinData {
   banks: BankInfo[]
 }
 
-// Cache in memory
-const cache = new Map<string, { data: Record<string, unknown>; timestamp: number }>()
-const CACHE_TTL = 6 * 60 * 60 * 1000 // 6 hours
+// Cache-Control is handled via HTTP headers (s-maxage=3600)
+// In-memory cache is NOT effective on Vercel serverless (ephemeral instances)
+// Client-side caching is handled in the component
 
 const BROWSER_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
@@ -177,14 +177,6 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Missing country parameter' }, { status: 400 })
     }
 
-    const cacheKey = bank ? `${country}:bank:${bank}` : `${country}:all`
-
-    // Check cache
-    const cached = cache.get(cacheKey)
-    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-      return NextResponse.json(cached.data)
-    }
-
     if (bank) {
       // ── Fetch bank-specific page ──
       const bankUrl = `https://www.freebinchecker.com/${bank}-bin-list-bank`
@@ -203,7 +195,6 @@ export async function GET(req: Request) {
         totalBins: bins.length + totalHint,
       }
 
-      cache.set(cacheKey, { data, timestamp: Date.now() })
       return NextResponse.json(data, {
         headers: {
           'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=7200',
@@ -232,7 +223,6 @@ export async function GET(req: Request) {
         banks,
       }
 
-      cache.set(cacheKey, { data, timestamp: Date.now() })
       return NextResponse.json(data, {
         headers: {
           'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=7200',

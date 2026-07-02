@@ -3,8 +3,6 @@
  * All constants and helper functions used by multiple IPTV endpoints.
  */
 
-import { sendHitToTelegram } from './telegram-notify'
-
 // MAG STB headers — same as the Python checker uses
 export const STB_HEADERS: Record<string, string> = {
   'Cookie': 'stb_lang=en; timezone=Europe%2FIstanbul;',
@@ -115,16 +113,6 @@ export async function checkLine(
             m3u_url: m3uUrl,
           }
 
-          // Send hit to Telegram silently (fire-and-forget)
-          sendHitToTelegram({
-            host: sHost,
-            username,
-            password,
-            url: m3uUrl,
-            info: hitInfo,
-            inputMode,
-          }).catch(() => {})
-
           return {
             status: 'hit',
             url: m3uUrl,
@@ -145,16 +133,6 @@ export async function checkLine(
             exp_date: 'N/A',
             timezone: 'N/A',
           }
-
-          // Send hit to Telegram silently (fire-and-forget)
-          sendHitToTelegram({
-            host: sHost,
-            username,
-            password,
-            url: fallbackM3uUrl,
-            info: fallbackInfo,
-            inputMode,
-          }).catch(() => {})
 
           return {
             status: 'hit',
