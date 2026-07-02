@@ -290,7 +290,7 @@ export function BinSearcher() {
                   {selectedCountry?.name}
                 </p>
                 <p className="text-[11px]" style={{ color: 'var(--app-text-dim)' }}>
-                  {bins.length} BINs disponibles · {banks.length} bancos
+                  {banks.length} bancos disponibles
                 </p>
               </div>
             </div>
