@@ -4,8 +4,8 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Copy, Play, Square, Loader2, Upload, ExternalLink,
-  ChevronDown, X, Save, Clock, Trash2, Link, Zap, Shield,
-  Radio, Hash, Timer, Eye, EyeOff, Download, ShieldCheck, ShieldX, RotateCw
+  ChevronDown, X, Clock, Trash2, Link, Zap, Shield,
+  Radio, Hash, Timer, Eye, EyeOff, Download, ShieldCheck
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { apiFetch } from '@/lib/api-config'
@@ -434,7 +434,6 @@ export function IptvChecker() {
     try {
       // Validate in batches of 50
       const allValid: string[] = []
-      const allInvalid: string[] = []
 
       for (let i = 0; i < lines.length; i += 50) {
         const batch = lines.slice(i, i + 50).map(l => l.trim())
@@ -446,9 +445,8 @@ export function IptvChecker() {
           })
           const data = await res.json()
           if (data.valid) allValid.push(...data.valid)
-          if (data.invalid) allInvalid.push(...data.invalid)
         } catch {
-          allInvalid.push(...batch)
+          // invalid proxies silently skipped
         }
       }
 
