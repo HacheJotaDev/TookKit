@@ -20,6 +20,7 @@ interface BankInfo {
   name: string
   slug: string
   count: number
+  totalBins?: number
 }
 
 type Step = 'country' | 'bank' | 'bins'
@@ -72,6 +73,7 @@ export function BinSearcher() {
   const [bankName, setBankName] = useState<string>('')
   const [bankSearchQuery, setBankSearchQuery] = useState('')
   const [binSearchQuery, setBinSearchQuery] = useState('')
+  const [bankTotal, setBankTotal] = useState<number>(0)
   const abortRef = useRef<AbortController | null>(null)
 
   const filteredCountries = BIN_COUNTRIES.filter(c =>
@@ -136,7 +138,8 @@ export function BinSearcher() {
       if (!res.ok) throw new Error(data.error || 'Error fetching data')
 
       setBins(data.bins || [])
-      setBankName(data.bankName || bank.name)
+      setBankName(bank.name)
+      setBankTotal(data.totalBins || bank.count)
       setFilterNetwork('all')
       setFilterType('all')
       setBinSearchQuery('')
@@ -372,7 +375,7 @@ export function BinSearcher() {
                   {bankName || selectedCountry?.name}
                 </p>
                 <p className="text-[11px]" style={{ color: 'var(--app-text-dim)' }}>
-                  {filteredBins.length} de {bins.length} BINs
+                  {bins.length} BINs cargados{bankTotal > bins.length ? ` de ${bankTotal}` : ''}
                 </p>
               </div>
             </div>
