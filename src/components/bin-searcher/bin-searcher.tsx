@@ -4,7 +4,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Search, ChevronRight, ArrowLeft, Copy, Check, Loader2,
-  CreditCard, Building2, Globe, Filter, X, Database
+  CreditCard, Building2, Globe, Filter, X, Database, Landmark
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { BIN_COUNTRIES, type BinCountry } from '@/lib/bin-country-data'
@@ -66,7 +66,7 @@ export function BinSearcher() {
   const [banks, setBanks] = useState<BankInfo[]>([])
   const [bins, setBins] = useState<BinEntry[]>([])
   const [loading, setLoading] = useState(false)
-  const [copiedBin, setCopiedBin] = useState<string | null>(null)
+  const [copiedAll, setCopiedAll] = useState(false)
   const [filterType, setFilterType] = useState<string>('all')
   const [filterNetwork, setFilterNetwork] = useState<string>('all')
   const [bankName, setBankName] = useState<string>('')
@@ -154,17 +154,12 @@ export function BinSearcher() {
     else if (step === 'bank') setStep('country')
   }, [step])
 
-  const copyBin = useCallback(async (bin: string) => {
-    await navigator.clipboard.writeText(bin)
-    setCopiedBin(bin)
-    toast.success('BIN copiado')
-    setTimeout(() => setCopiedBin(null), 1500)
-  }, [])
-
   const copyAllBins = useCallback(async () => {
     const text = filteredBins.map(b => b.bin).join('\n')
     await navigator.clipboard.writeText(text)
+    setCopiedAll(true)
     toast.success(`${filteredBins.length} BINs copiados`)
+    setTimeout(() => setCopiedAll(false), 1500)
   }, [filteredBins])
 
   // Cleanup on unmount
@@ -475,8 +470,8 @@ export function BinSearcher() {
                 onClick={copyAllBins}
                 className="w-full flex items-center justify-center gap-2 text-xs font-medium text-amber-500 hover:text-amber-400 py-2 transition-colors"
               >
-                <Copy className="w-3.5 h-3.5" />
-                Copiar {filteredBins.length} BINs
+                {copiedAll ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                {copiedAll ? `Copiados ${filteredBins.length} BINs` : `Copiar ${filteredBins.length} BINs`}
               </button>
             )}
 
@@ -505,7 +500,7 @@ export function BinSearcher() {
                     {/* Left accent line */}
                     <div className={`absolute left-0 top-0 bottom-0 w-0.5 ${getNetworkBg(entry.network)}`} />
 
-                    {/* BIN number */}
+                    {/* BIN number + badges */}
                     <div className="pl-2 flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-mono font-bold tracking-wider" style={{ color: 'var(--app-text)' }}>
@@ -532,17 +527,15 @@ export function BinSearcher() {
                       </div>
                     </div>
 
-                    {/* Copy button */}
-                    <button
-                      onClick={() => copyBin(entry.bin)}
-                      className="p-2 rounded-lg hover:bg-white/[0.06] transition-all duration-200 active:scale-95 shrink-0"
-                    >
-                      {copiedBin === entry.bin ? (
-                        <Check className="w-4 h-4 text-green-500" />
-                      ) : (
-                        <Copy className="w-4 h-4 transition-colors" style={{ color: 'var(--app-text-dim)' }} />
-                      )}
-                    </button>
+                    {/* Bank name */}
+                    {bankName && bankName !== 'Todos' && (
+                      <div className="flex items-center gap-1.5 shrink-0 pr-1">
+                        <Landmark className="w-3 h-3 text-purple-400/60" />
+                        <span className="text-[10px] font-medium text-purple-400/70 max-w-[100px] truncate">
+                          {bankName}
+                        </span>
+                      </div>
+                    )}
                   </motion.div>
                 ))
               )}
