@@ -19,11 +19,12 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  viewportFit: 'cover',
 }
 
 export const metadata: Metadata = {
   title: "HJTools X - Plataforma de Verificación y Utilidades",
-  description: "Plataforma con Generador de Tarjetas, CCS Checker, IPTV Checker + Player y Correo Temporal",
+  description: "Plataforma con Generador de Tarjetas, CCS Checker, IPTV Checker, Correo Temporal, Direcciones y IBAN",
   icons: {
     icon: [
       { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
