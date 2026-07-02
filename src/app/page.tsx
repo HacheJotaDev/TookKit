@@ -5,12 +5,13 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   CreditCard, Search, Tv, Mail, Settings, Copy, Check, Play,
   Trash2, RefreshCw, ChevronDown, Info, Moon, Sun,
-  Loader2, Square, Send, ExternalLink, Zap, AlertTriangle,
+  Loader2, Square, Send, ExternalLink, Zap, AlertTriangle, Shield,
   MessageCircle, Phone, Share2, MapPin, Landmark, Globe, MonitorSmartphone
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { IptvChecker } from '@/components/iptv/iptv-checker'
 import { BinSearcher } from '@/components/bin-searcher/bin-searcher'
+import { IpFraudChecker } from '@/components/ip-fraud/ip-fraud-checker'
 import { apiFetch } from '@/lib/api-config'
 import { IBAN_COUNTRIES, generateIban, formatIban, type IbanCountry } from '@/lib/iban-data'
 
@@ -68,7 +69,8 @@ const T: Record<Lang, Record<string, string>> = {
     'tool.email': 'Correo', 'tool.email_desc': 'Temporal',
     'tool.address': 'Direcciones', 'tool.address_desc': 'Generador',
     'tool.iban': 'IBAN', 'tool.iban_desc': 'Generador',
-    'tool.binsearch': 'BIN Lookup', 'tool.binsearch_desc': 'Buscador',
+    'tool.binsearch': 'BIN Lookup','tool.binsearch_desc': 'Buscador',
+  'tool.ipfraud': 'IP Fraude', 'tool.ipfraud_desc': 'Scanner',
     'set.about_desc': 'HJTools X — Generador de Tarjetas, CCS Checker, IPTV Checker, Generador de Correo, Direcciones e IBAN.',
   },
   en: {
@@ -117,6 +119,7 @@ const T: Record<Lang, Record<string, string>> = {
     'tool.address': 'Addresses', 'tool.address_desc': 'Generator',
     'tool.iban': 'IBAN', 'tool.iban_desc': 'Generator',
     'tool.binsearch': 'BIN Lookup', 'tool.binsearch_desc': 'Search',
+  'tool.ipfraud': 'IP Fraud', 'tool.ipfraud_desc': 'Scanner',
     'set.about_desc': 'HJTools X — Card Generator, CCS Checker, IPTV Checker, Email Generator, Addresses & IBAN.',
   },
   pt: {
@@ -165,6 +168,7 @@ const T: Record<Lang, Record<string, string>> = {
     'tool.address': 'Endereços', 'tool.address_desc': 'Gerador',
     'tool.iban': 'IBAN', 'tool.iban_desc': 'Gerador',
     'tool.binsearch': 'BIN Lookup', 'tool.binsearch_desc': 'Pesquisa',
+  'tool.ipfraud': 'IP Fraude', 'tool.ipfraud_desc': 'Scanner',
     'set.about_desc': 'HJTools X — Gerador de Cartões, CCS Checker, IPTV Checker, Gerador de Email, Endereços e IBAN.',
   },
 }
@@ -187,7 +191,7 @@ const binCache = new Map<string, { country_name: string }>()
 // ============================================================
 
 type TabId = 'cards' | 'checker' | 'tools' | 'settings'
-type ToolId = 'iptv' | 'email' | 'address' | 'iban' | 'binsearch'
+type ToolId = 'iptv' | 'email' | 'address' | 'iban' | 'binsearch' | 'ipfraud'
 
 interface GeneratedCard {
   number: string
@@ -375,6 +379,7 @@ const toolCards: { id: ToolId; labelKey: string; descKey: string; icon: typeof C
   { id: 'address', labelKey: 'tool.address', descKey: 'tool.address_desc', icon: MapPin, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
   { id: 'iban', labelKey: 'tool.iban', descKey: 'tool.iban_desc', icon: Landmark, color: 'text-purple-400', bg: 'bg-purple-500/10' },
   { id: 'binsearch', labelKey: 'tool.binsearch', descKey: 'tool.binsearch_desc', icon: CreditCard, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+  { id: 'ipfraud', labelKey: 'tool.ipfraud', descKey: 'tool.ipfraud_desc', icon: Shield, color: 'text-rose-400', bg: 'bg-rose-500/10' },
 ]
 
 // ============================================================
@@ -486,6 +491,7 @@ function HomeInner() {
                 {activeTool === 'address' && <AddressTab />}
                 {activeTool === 'iban' && <IbanTab />}
                 {activeTool === 'binsearch' && <BinSearchTab />}
+                {activeTool === 'ipfraud' && <IpFraudTab />}
               </motion.div>
             </AnimatePresence>
           )}
@@ -1785,6 +1791,18 @@ function BinSearchTab() {
   return (
     <div className="relative">
       <BinSearcher />
+    </div>
+  )
+}
+
+// ============================================================
+// TAB 5b: IP FRAUD CHECKER
+// ============================================================
+
+function IpFraudTab() {
+  return (
+    <div className="relative">
+      <IpFraudChecker />
     </div>
   )
 }
