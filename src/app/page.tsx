@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useCallback, useEffect, useRef, useMemo, createContext, useContext } from 'react'
+import { useState, useCallback, useEffect, useRef, createContext, useContext } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   CreditCard, Search, Tv, Mail, Settings, Copy, Check, Play,
   Trash2, RefreshCw, ChevronDown, Info, Moon, Sun,
-  X, Loader2, Square, Send, ExternalLink, Zap, Upload, AlertTriangle,
+  Loader2, Square, Send, ExternalLink, Zap, AlertTriangle,
   MessageCircle, Phone, Share2, MapPin, Landmark, Globe, MonitorSmartphone
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -541,7 +541,6 @@ function CardsTab() {
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
   const [copiedAll, setCopiedAll] = useState(false)
   const [binInfo, setBinInfo] = useState<BinInfo | null>(null)
-  const [binLoading, setBinLoading] = useState(false)
 
   // Debounced BIN lookup (with client-side cache to avoid repeated host calls)
   const debouncedBin = useDebounce(bin.replace(/[^0-9]/g, '').slice(0, 6), 500)
@@ -553,7 +552,6 @@ function CardsTab() {
         setBinInfo({ flag: '', country_name: cached.country_name })
         return
       }
-      setBinLoading(true)
       fetch(`/api/bin/${debouncedBin}`)
         .then(r => r.ok ? r.json() : null)
         .then((data: { country_name?: string } | null) => {
@@ -562,7 +560,6 @@ function CardsTab() {
           setBinInfo(info)
         })
         .catch(() => setBinInfo(null))
-        .finally(() => setBinLoading(false))
     } else {
       setBinInfo(null)
     }
@@ -963,19 +960,29 @@ function EmailTab() {
   const [isRecovering, setIsRecovering] = useState(true)
   const refreshIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // Sanitize HTML to prevent XSS attacks from email content
+  // Sanitize HTML using DOMParser to prevent XSS
   const sanitizeHtml = useCallback((html: string): string => {
-    return html
-      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-      .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
-      .replace(/<object\b[^<]*(?:(?!<\/object>)<[^<]*)*<\/object>/gi, '')
-      .replace(/<embed\b[^>]*>/gi, '')
-      .replace(/<form\b[^<]*(?:(?!<\/form>)<[^<]*)*<\/form>/gi, '')
-      .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
-      .replace(/javascript\s*:/gi, '')
-      .replace(/<meta\b[^>]*>/gi, '')
-      .replace(/<link\b[^>]*>/gi, '')
-      .replace(/<base\b[^>]*>/gi, '')
+    if (typeof document === 'undefined') return html
+    try {
+      const doc = new DOMParser().parseFromString(html, 'text/html')
+      // Remove dangerous elements
+      const remove = ['script', 'iframe', 'object', 'embed', 'form', 'meta', 'link', 'base', 'style']
+      remove.forEach(tag => {
+        doc.querySelectorAll(tag).forEach(el => el.remove())
+      })
+      // Remove all event handlers and javascript: URLs
+      doc.querySelectorAll('*').forEach(el => {
+        Array.from(el.attributes).forEach(attr => {
+          const name = attr.name.toLowerCase()
+          if (name.startsWith('on') || attr.value.toLowerCase().trim().startsWith('javascript:')) {
+            el.removeAttribute(attr.name)
+          }
+        })
+      })
+      return doc.body.innerHTML
+    } catch {
+      return ''
+    }
   }, [])
 
   // Try to recover email from server DB or localStorage on mount
@@ -1257,7 +1264,7 @@ function EmailTab() {
 
         <div
           className="bg-[#111113] theme-card rounded-xl border border-white/[0.06] p-4 prose prose-invert prose-sm max-w-none"
-          dangerouslySetInnerHTML={{ __html: selectedMsg.body }}
+          dangerouslySetInnerHTML={{ __html: sanitizeHtml(selectedMsg.body || '') }}
         />
       </div>
     )
@@ -1641,7 +1648,7 @@ function IbanTab() {
     toast.success(`${qty} IBAN${qty > 1 ? 's' : ''} generado${qty > 1 ? 's' : ''}`)
   }, [selectedCountry, quantity])
 
-  const formatIbanLocal = (iban: string) => formatIban(iban)
+  
 
   const copyIban = useCallback(async (iban: string, idx: number) => {
     await navigator.clipboard.writeText(iban)
@@ -1736,7 +1743,7 @@ function IbanTab() {
                         </span>
                       </div>
                       <p className="text-sm font-mono leading-snug tracking-wide" style={{ color: 'var(--app-text-90)' }}>
-                        {formatIbanLocal(item.iban)}
+                        {formatIban(item.iban)}
                       </p>
                       <div className="flex gap-3 text-xs font-mono" style={{ color: 'var(--app-text-dim)' }}>
                         <span>Código: <span className="text-amber-500/70">{item.iban.slice(0, 2)}</span></span>
