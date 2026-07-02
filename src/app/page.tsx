@@ -6,8 +6,7 @@ import {
   CreditCard, Search, Tv, Mail, Settings, Copy, Check, Play,
   Trash2, RefreshCw, ChevronDown, Info, Moon, Sun,
   X, Loader2, Square, Send, ExternalLink, Zap, Upload, AlertTriangle,
-  MessageCircle, Phone, Share2, MapPin, Landmark,
-  Database, Wifi, Shield, FileText
+  MessageCircle, Phone, Share2, MapPin, Landmark
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { IptvChecker } from '@/components/iptv/iptv-checker'
@@ -209,8 +208,8 @@ const tabs: { id: TabId; label: string; icon: typeof CreditCard }[] = [
 const toolCards: { id: ToolId; label: string; desc: string; icon: typeof CreditCard; color: string; bg: string }[] = [
   { id: 'iptv', label: 'IPTV', desc: 'Checker', icon: Tv, color: 'text-red-400', bg: 'bg-red-500/10' },
   { id: 'email', label: 'Correo', desc: 'Generador', icon: Mail, color: 'text-amber-400', bg: 'bg-amber-500/10' },
-  { id: 'address', label: 'Direcciones', desc: 'Por país', icon: MapPin, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
-  { id: 'iban', label: 'IBAN', desc: 'MOD-97 válido', icon: Landmark, color: 'text-purple-400', bg: 'bg-purple-500/10' },
+  { id: 'address', label: 'Direcciones', desc: 'Generador', icon: MapPin, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
+  { id: 'iban', label: 'IBAN', desc: 'Generador', icon: Landmark, color: 'text-purple-400', bg: 'bg-purple-500/10' },
 ]
 
 // ============================================================
@@ -1611,23 +1610,17 @@ function SettingsTab() {
   })
   const [showSharePanel, setShowSharePanel] = useState(false)
   const [copiedLink, setCopiedLink] = useState(false)
-  const [serverStatus, setServerStatus] = useState<'idle' | 'checking' | 'online' | 'offline'>('idle')
-  const [cacheSize, setCacheSize] = useState(0)
   const [storageUsed, setStorageUsed] = useState('')
+  const [showClearConfirm, setShowClearConfirm] = useState(false)
 
   const APK_URL = 'https://www.mediafire.com/file/2gsvk7962tqqonv/HJTools_X.apk/file'
   const SHARE_TEXT = 'Descarga HJTools X - La toolkit todo en uno'
   const SHARE_FULL = `${SHARE_TEXT}\n${APK_URL}`
 
-  // Calculate cache & storage on mount
+  // Calculate storage on mount
   useEffect(() => {
-    setCacheSize(binCache.size)
-    try {
-      const bytes = new Blob([JSON.stringify(localStorage)]).size
-      setStorageUsed(bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`)
-    } catch {
-      setStorageUsed('N/A')
-    }
+    refreshStorageSize()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const handleShare = useCallback(async () => {
@@ -1672,30 +1665,13 @@ function SettingsTab() {
     }
   }, [])
 
-  const checkServer = useCallback(async () => {
-    setServerStatus('checking')
+  const refreshStorageSize = useCallback(() => {
     try {
-      const start = Date.now()
-      const res = await fetch('/api/bin/411111', { cache: 'no-store' })
-      const latency = Date.now() - start
-      if (res.ok) {
-        setServerStatus('online')
-        toast.success(`Servidor activo — ${latency}ms`)
-      } else {
-        setServerStatus('offline')
-        toast.error('Servidor no responde correctamente')
-      }
+      const bytes = new Blob([JSON.stringify(localStorage)]).size
+      setStorageUsed(bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`)
     } catch {
-      setServerStatus('offline')
-      toast.error('Sin conexión al servidor')
+      setStorageUsed('N/A')
     }
-  }, [])
-
-  const clearBinCache = useCallback(() => {
-    const size = binCache.size
-    binCache.clear()
-    setCacheSize(0)
-    toast.success(`Caché limpiado — ${size} registros eliminados`)
   }, [])
 
   const clearStorage = useCallback(() => {
@@ -1705,12 +1681,13 @@ function SettingsTab() {
       keys.forEach(k => {
         if (!toKeep.includes(k)) localStorage.removeItem(k)
       })
-      setStorageUsed('0 B')
-      toast.success('Datos de navegación limpiados')
+      refreshStorageSize()
+      setShowClearConfirm(false)
+      toast.success('Datos limpiados correctamente')
     } catch {
-      toast.error('No se pudo limpiar el almacenamiento')
+      toast.error('No se pudo limpiar')
     }
-  }, [])
+  }, [refreshStorageSize])
 
   useEffect(() => {
     const saved = localStorage.getItem('theme')
@@ -1727,15 +1704,15 @@ function SettingsTab() {
 
   return (
     <div className="space-y-3">
-      {/* App Info Card */}
-      <div className="rounded-2xl border p-5 text-center" style={{ background: 'var(--app-card)', borderColor: 'var(--app-card-border)' }}>
-        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-600/10 border border-amber-500/20 flex items-center justify-center mx-auto mb-3 overflow-hidden">
-          <img src="/logo.svg" alt="HJTools X" className="w-10 h-10" />
+      {/* App Info */}
+      <div className="rounded-2xl border p-4 text-center" style={{ background: 'var(--app-card)', borderColor: 'var(--app-card-border)' }}>
+        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-600/10 border border-amber-500/20 flex items-center justify-center mx-auto mb-2.5 overflow-hidden">
+          <img src="/logo.svg" alt="HJTools X" className="w-9 h-9" />
         </div>
-        <h2 className="text-base font-bold">
+        <h2 className="text-sm font-bold">
           <span className="text-amber-500">HJTools</span> X
         </h2>
-        <p className="text-[10px] mt-1" style={{ color: 'var(--app-text-dim)' }}>v1.0.0 — Plataforma de verificación y utilidades</p>
+        <p className="text-[10px] mt-0.5" style={{ color: 'var(--app-text-dim)' }}>v1.0.0</p>
       </div>
 
       {/* Theme Toggle */}
@@ -1750,160 +1727,81 @@ function SettingsTab() {
           </div>
           <button
             onClick={toggleTheme}
-            className={`relative w-11 h-6 rounded-full transition-colors ${
-              isDark ? 'bg-amber-500' : 'bg-gray-400'
-            }`}
+            className={`relative w-11 h-6 rounded-full transition-colors ${isDark ? 'bg-amber-500' : 'bg-gray-400'}`}
           >
-            <div
-              className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200"
-              style={{ transform: isDark ? 'translateX(22px)' : 'translateX(2px)' }}
-            />
+            <div className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200" style={{ transform: isDark ? 'translateX(22px)' : 'translateX(2px)' }} />
           </button>
         </div>
       </div>
 
-      {/* Server Status + Cache */}
-      <div className="rounded-2xl border divide-y divide-white/[0.05]" style={{ background: 'var(--app-card)', borderColor: 'var(--app-card-border)' }}>
-        {/* Server Status */}
-        <button
-          onClick={checkServer}
-          disabled={serverStatus === 'checking'}
-          className="w-full flex items-center gap-3 p-3.5 text-left transition-colors hover:bg-white/[0.03] disabled:opacity-50"
-        >
-          <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
-            serverStatus === 'online' ? 'bg-green-500/15' :
-            serverStatus === 'offline' ? 'bg-red-500/15' :
-            serverStatus === 'checking' ? 'bg-amber-500/15' :
-            'bg-blue-500/10'
-          }`}>
-            {serverStatus === 'checking' ? (
-              <Loader2 className="w-[18px] h-[18px] text-amber-500 animate-spin" />
-            ) : (
-              <Wifi className={`w-[18px] h-[18px] ${
-                serverStatus === 'online' ? 'text-green-400' :
-                serverStatus === 'offline' ? 'text-red-400' :
-                'text-blue-400'
-              }`} />
-            )}
+      {/* Limpiar datos — the one the user liked */}
+      <div className="rounded-2xl border p-3.5" style={{ background: 'var(--app-card)', borderColor: 'var(--app-card-border)' }}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-rose-500/10 flex items-center justify-center">
+              <Trash2 className="w-[18px] h-[18px] text-rose-400" />
+            </div>
+            <div>
+              <p className="text-[13px] font-medium">Limpiar datos</p>
+              <p className="text-[11px]" style={{ color: 'var(--app-text-dim)' }}>Almacenamiento: {storageUsed}</p>
+            </div>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[13px] font-medium">Estado del servidor</p>
-            <p className="text-[11px]" style={{ color: 'var(--app-text-dim)' }}>
-              {serverStatus === 'checking' ? 'Verificando...' :
-               serverStatus === 'online' ? 'Conexión activa' :
-               serverStatus === 'offline' ? 'Sin conexión' :
-               'Toca para verificar'}
-            </p>
-          </div>
-          {serverStatus === 'online' && (
-            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+          {!showClearConfirm ? (
+            <button
+              onClick={() => setShowClearConfirm(true)}
+              className="text-[11px] px-3 py-1.5 rounded-lg bg-rose-500/15 text-rose-400 font-medium transition-colors hover:bg-rose-500/25"
+            >
+              Limpiar
+            </button>
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={clearStorage}
+                className="text-[11px] px-3 py-1.5 rounded-lg bg-rose-500 text-white font-medium transition-colors hover:bg-rose-400"
+              >
+                Confirmar
+              </button>
+              <button
+                onClick={() => setShowClearConfirm(false)}
+                className="text-[11px] px-3 py-1.5 rounded-lg bg-white/[0.08] font-medium transition-colors hover:bg-white/[0.12]"
+                style={{ color: 'var(--app-text-dim)' }}
+              >
+                No
+              </button>
+            </div>
           )}
-        </button>
-
-        {/* Clear BIN Cache */}
-        <button
-          onClick={clearBinCache}
-          className="w-full flex items-center gap-3 p-3.5 text-left transition-colors hover:bg-white/[0.03]"
-        >
-          <div className="w-9 h-9 rounded-xl bg-orange-500/10 flex items-center justify-center">
-            <Database className="w-[18px] h-[18px] text-orange-400" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[13px] font-medium">Caché de BIN</p>
-            <p className="text-[11px]" style={{ color: 'var(--app-text-dim)' }}>
-              {cacheSize > 0 ? `${cacheSize} registros almacenados` : 'Vacío'}
-            </p>
-          </div>
-          {cacheSize > 0 && (
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-500/15 text-orange-400 font-medium">
-              {cacheSize}
-            </span>
-          )}
-        </button>
-
-        {/* Clear Local Storage */}
-        <button
-          onClick={clearStorage}
-          className="w-full flex items-center gap-3 p-3.5 text-left transition-colors hover:bg-white/[0.03]"
-        >
-          <div className="w-9 h-9 rounded-xl bg-rose-500/10 flex items-center justify-center">
-            <Trash2 className="w-[18px] h-[18px] text-rose-400" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[13px] font-medium">Limpiar datos</p>
-            <p className="text-[11px]" style={{ color: 'var(--app-text-dim)' }}>
-              Almacenamiento usado: {storageUsed}
-            </p>
-          </div>
-          <ChevronDown className="w-4 h-4 rotate-[-90deg]" style={{ color: 'var(--app-text-faint)' }} />
-        </button>
-      </div>
-
-      {/* Security & Privacy */}
-      <div className="rounded-2xl border divide-y divide-white/[0.05]" style={{ background: 'var(--app-card)', borderColor: 'var(--app-card-border)' }}>
-        <div className="flex items-center gap-3 p-3.5">
-          <div className="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center">
-            <Shield className="w-[18px] h-[18px] text-emerald-400" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[13px] font-medium">Privacidad</p>
-            <p className="text-[11px]" style={{ color: 'var(--app-text-dim)' }}>Sin tracking ni recolección de datos</p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3 p-3.5">
-          <div className="w-9 h-9 rounded-xl bg-violet-500/10 flex items-center justify-center">
-            <FileText className="w-[18px] h-[18px] text-violet-400" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[13px] font-medium">Términos de uso</p>
-            <p className="text-[11px]" style={{ color: 'var(--app-text-dim)' }}>Solo para fines educativos</p>
-          </div>
-          <ChevronDown className="w-4 h-4 rotate-[-90deg]" style={{ color: 'var(--app-text-faint)' }} />
         </div>
       </div>
 
-      {/* About */}
+      {/* About + Support */}
       <div className="rounded-2xl border p-3.5 space-y-2.5" style={{ background: 'var(--app-card)', borderColor: 'var(--app-card-border)' }}>
         <div className="flex items-center gap-2">
           <Info className="w-4 h-4" style={{ color: 'var(--app-text-dim)' }} />
           <h3 className="text-[11px] font-medium uppercase tracking-wider" style={{ color: 'var(--app-text-dim)' }}>Acerca de</h3>
         </div>
         <p className="text-[11px] leading-relaxed" style={{ color: 'var(--app-text-dim)' }}>
-          HJTools X — Generador de Tarjetas, CCS Checker, IPTV Checker, Generador de Correo, Direcciones por país y Generador de IBAN. Todo en una sola plataforma.
+          HJTools X — Generador de Tarjetas, CCS Checker, IPTV Checker, Generador de Correo, Direcciones e IBAN.
         </p>
         <div className="flex items-center gap-2">
           <Zap className="w-3 h-3 text-amber-500/40" />
           <span className="text-[11px]" style={{ color: 'var(--app-text-faint)' }}>Desarrollado por HacheJota</span>
         </div>
-        <div className="flex items-center gap-3 pt-1">
-          <a
-            href="https://wa.me/524437863111"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 text-[11px] text-green-400/70 hover:text-green-400 transition-colors"
-          >
-            <Phone className="w-3 h-3" />
-            WhatsApp
+        <div className="flex items-center gap-4 pt-1">
+          <a href="https://wa.me/524437863111" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-[11px] text-green-400/70 hover:text-green-400 transition-colors">
+            <Phone className="w-3 h-3" /> WhatsApp
           </a>
-          <a
-            href="https://t.me/HcheJotaA_Bot"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 text-[11px] text-sky-400/70 hover:text-sky-400 transition-colors"
-          >
-            <MessageCircle className="w-3 h-3" />
-            Telegram
+          <a href="https://t.me/HcheJotaA_Bot" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-[11px] text-sky-400/70 hover:text-sky-400 transition-colors">
+            <MessageCircle className="w-3 h-3" /> Telegram
           </a>
         </div>
       </div>
 
-      {/* Share APK Button */}
+      {/* Share APK */}
       <button
         onClick={handleShare}
         className="relative w-full overflow-hidden flex items-center justify-center gap-2.5 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:via-amber-300 hover:to-amber-400 text-black font-bold rounded-2xl py-3.5 text-[13px] transition-all duration-300 shadow-lg shadow-amber-500/25 hover:shadow-amber-500/40 hover:scale-[1.02] active:scale-[0.98]"
       >
-        <Share2 className="w-4.5 h-4.5" />
+        <Share2 className="w-4 h-4" />
         Compartir APK
         <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full animate-[shimmer_3s_infinite]" />
       </button>
@@ -1934,14 +1832,9 @@ function SettingsTab() {
                 <p className="text-[11px] text-white/40 mt-1">Elige dónde compartir la app</p>
               </div>
               <div className="space-y-3">
-                <button
-                  onClick={shareWhatsApp}
-                  className="w-full flex items-center gap-3 bg-[#25D366]/15 hover:bg-[#25D366]/25 border border-[#25D366]/20 rounded-xl px-4 py-3 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
-                >
+                <button onClick={shareWhatsApp} className="w-full flex items-center gap-3 bg-[#25D366]/15 hover:bg-[#25D366]/25 border border-[#25D366]/20 rounded-xl px-4 py-3 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]">
                   <div className="w-10 h-10 rounded-xl bg-[#25D366]/20 flex items-center justify-center shrink-0">
-                    <svg viewBox="0 0 24 24" className="w-5 h-5" fill="#25D366">
-                      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-                    </svg>
+                    <svg viewBox="0 0 24 24" className="w-5 h-5" fill="#25D366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
                   </div>
                   <div className="text-left flex-1">
                     <p className="text-[13px] font-semibold text-[#25D366]">WhatsApp</p>
@@ -1949,14 +1842,9 @@ function SettingsTab() {
                   </div>
                   <ExternalLink className="w-4 h-4 text-white/20" />
                 </button>
-                <button
-                  onClick={shareTelegram}
-                  className="w-full flex items-center gap-3 bg-[#26A5E4]/15 hover:bg-[#26A5E4]/25 border border-[#26A5E4]/20 rounded-xl px-4 py-3 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
-                >
+                <button onClick={shareTelegram} className="w-full flex items-center gap-3 bg-[#26A5E4]/15 hover:bg-[#26A5E4]/25 border border-[#26A5E4]/20 rounded-xl px-4 py-3 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]">
                   <div className="w-10 h-10 rounded-xl bg-[#26A5E4]/20 flex items-center justify-center shrink-0">
-                    <svg viewBox="0 0 24 24" className="w-5 h-5" fill="#26A5E4">
-                      <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.479.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
-                    </svg>
+                    <svg viewBox="0 0 24 24" className="w-5 h-5" fill="#26A5E4"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.479.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
                   </div>
                   <div className="text-left flex-1">
                     <p className="text-[13px] font-semibold text-[#26A5E4]">Telegram</p>
@@ -1964,16 +1852,9 @@ function SettingsTab() {
                   </div>
                   <ExternalLink className="w-4 h-4 text-white/20" />
                 </button>
-                <button
-                  onClick={copyLink}
-                  className="w-full flex items-center gap-3 bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08] rounded-xl px-4 py-3 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
-                >
+                <button onClick={copyLink} className="w-full flex items-center gap-3 bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08] rounded-xl px-4 py-3 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]">
                   <div className="w-10 h-10 rounded-xl bg-white/[0.08] flex items-center justify-center shrink-0">
-                    {copiedLink ? (
-                      <Check className="w-5 h-5 text-green-500" />
-                    ) : (
-                      <Copy className="w-5 h-5 text-white/60" />
-                    )}
+                    {copiedLink ? <Check className="w-5 h-5 text-green-500" /> : <Copy className="w-5 h-5 text-white/60" />}
                   </div>
                   <div className="text-left flex-1">
                     <p className="text-[13px] font-semibold text-white/90">{copiedLink ? 'Copiado!' : 'Copiar Link'}</p>
@@ -1981,10 +1862,7 @@ function SettingsTab() {
                   </div>
                 </button>
               </div>
-              <button
-                onClick={() => setShowSharePanel(false)}
-                className="w-full mt-4 py-3 rounded-xl text-[13px] text-white/50 hover:text-white/70 hover:bg-white/[0.04] transition-all"
-              >
+              <button onClick={() => setShowSharePanel(false)} className="w-full mt-4 py-3 rounded-xl text-[13px] text-white/50 hover:text-white/70 hover:bg-white/[0.04] transition-all">
                 Cancelar
               </button>
             </motion.div>
