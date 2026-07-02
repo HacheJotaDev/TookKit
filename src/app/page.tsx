@@ -1,17 +1,159 @@
 'use client'
 
-import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
+import { useState, useCallback, useEffect, useRef, useMemo, createContext, useContext } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   CreditCard, Search, Tv, Mail, Settings, Copy, Check, Play,
   Trash2, RefreshCw, ChevronDown, Info, Moon, Sun,
   X, Loader2, Square, Send, ExternalLink, Zap, Upload, AlertTriangle,
-  MessageCircle, Phone, Share2, MapPin, Landmark
+  MessageCircle, Phone, Share2, MapPin, Landmark, Globe, MonitorSmartphone
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { IptvChecker } from '@/components/iptv/iptv-checker'
 import { apiFetch } from '@/lib/api-config'
 import { IBAN_COUNTRIES, generateIban, formatIban, type IbanCountry } from '@/lib/iban-data'
+
+// ============================================================
+// I18N SYSTEM
+// ============================================================
+
+type Lang = 'es' | 'en' | 'pt'
+
+const LANG_LABELS: Record<Lang, string> = { es: 'Español', en: 'English', pt: 'Português' }
+
+const T: Record<Lang, Record<string, string>> = {
+  es: {
+    'nav.tarjetas': 'Tarjetas', 'nav.checker': 'Checker', 'nav.herramientas': 'Herramientas', 'nav.ajustes': 'Ajustes',
+    'tools.title': 'Herramientas', 'tools.subtitle': 'Selecciona una herramienta',
+    'cards.bin': 'BIN / Plantilla', 'cards.generar': 'Generar', 'cards.resultados': 'resultados',
+    'cards.copiar_todo': 'Copiar Todo', 'cards.copiado': 'Copiado al portapapeles',
+    'cards.tarjetas_copiadas': 'tarjetas copiadas', 'cards.ingresa_bin': 'Ingresa un BIN válido',
+    'cards.generada': 'tarjeta generada', 'cards.generadas': 'tarjetas generadas',
+    'checker.lista': 'Lista de CC', 'checker.verificar': 'Verificar', 'checker.analizando': 'Analizando...',
+    'checker.detener': 'Detener', 'checker.total': 'Total', 'checker.aprobadas': 'Aprobadas', 'checker.rechazadas': 'Rechazadas',
+    'checker.ingresa_cc': 'Ingresa al menos una tarjeta', 'checker.listo_aprobadas': 'aprobadas',
+    'checker.listo_rechazadas': 'rechazadas', 'checker.detenido': 'Proceso detenido',
+    'checker.copiado': 'Copiado', 'checker.error_conexion': 'Error de conexión',
+    'checker.aprobada_msg': 'Aprobada', 'checker.rechazada_msg': 'Rechazada',
+    'email.tu_correo': 'Tu Correo Temporal', 'email.actualizar': 'Actualizar bandeja',
+    'email.token_exp': 'Token expirado — genera un nuevo correo', 'email.temporal': 'Correo Temporal',
+    'email.temp_desc': 'Genera un correo temporal para recibir mensajes', 'email.generar': 'Generar Correo',
+    'email.creando': 'Creando...', 'email.creado': 'Correo temporal creado',
+    'email.error_crear': 'Error al crear correo. Verifica tu conexión.', 'email.eliminada': 'Cuenta eliminada',
+    'email.error_eliminar': 'Error al eliminar cuenta', 'email.copiado': 'Correo copiado',
+    'email.bandeja': 'Bandeja de Entrada', 'email.sin_mensajes': 'Sin mensajes aún',
+    'email.mensajes_auto': 'Los mensajes aparecerán aquí automáticamente', 'email.recuperando': 'Recuperando correo...',
+    'email.sin_contenido': 'Sin contenido', 'email.sin_asunto': 'Sin asunto', 'email.desconocido': 'Desconocido',
+    'email.error_cargar': 'Error al cargar mensaje',
+    'addr.pais': 'País', 'addr.cantidad': 'Cantidad', 'addr.generar': 'Generar Direcciones', 'addr.generando': 'Generando...',
+    'addr.copiar_todo': 'Copiar Todo', 'addr.copiada': 'Dirección copiada', 'addr.copiadas': 'direcciones copiadas',
+    'addr.resultado': 'resultado', 'addr.error_gen': 'Error al generar direcciones. Intenta de nuevo.',
+    'addr.error_net': 'Error de conexión. Verifica tu internet.',
+    'iban.pais': 'País', 'iban.cantidad': 'Cantidad', 'iban.generar': 'Generar IBAN',
+    'iban.copiar_todo': 'Copiar Todo', 'iban.copiado': 'IBAN copiado', 'iban.copiados': 'IBANs copiados',
+    'iban.resultado': 'resultado', 'iban.selecciona': 'Selecciona un país válido', 'iban.codigo': 'Código',
+    'set.tema': 'Tema', 'set.oscuro': 'Oscuro', 'set.claro': 'Claro', 'set.apariencia': 'Cambiar apariencia',
+    'set.limpiar': 'Limpiar datos', 'set.almacenamiento': 'Almacenamiento', 'set.limpiar_btn': 'Limpiar',
+    'set.confirmar': 'Confirmar', 'set.no': 'No', 'set.limpiado': 'Datos limpiados correctamente',
+    'set.fallo_limpiar': 'No se pudo limpiar', 'set.acerca': 'Acerca de', 'set.dev': 'Desarrollado por HacheJota',
+    'set.compartir': 'Compartir APK', 'set.compartir_titulo': 'Compartir HJTools X',
+    'set.donde_compartir': 'Elige dónde compartir la app', 'set.cancelar': 'Cancelar',
+    'set.copiar_link': 'Copiar Link', 'set.portapapeles': 'Copiar al portapapeles', 'set.copiado': 'Copiado!',
+    'set.idioma': 'Idioma', 'set.idioma_desc': 'Seleccionar idioma',
+    'set.pantalla': 'Pantalla activa', 'set.pantalla_desc': 'Evitar que se apague',
+    'set.pantalla_no': 'No soportado en este navegador',
+  },
+  en: {
+    'nav.tarjetas': 'Tarjetas', 'nav.checker': 'Checker', 'nav.herramientas': 'Herramientas', 'nav.ajustes': 'Ajustes',
+    'tools.title': 'Herramientas', 'tools.subtitle': 'Select a tool',
+    'cards.bin': 'BIN / Template', 'cards.generar': 'Generate', 'cards.resultados': 'results',
+    'cards.copiar_todo': 'Copy All', 'cards.copiado': 'Copied to clipboard',
+    'cards.tarjetas_copiadas': 'cards copied', 'cards.ingresa_bin': 'Enter a valid BIN',
+    'cards.generada': 'card generated', 'cards.generadas': 'cards generated',
+    'checker.lista': 'CC List', 'checker.verificar': 'Verify', 'checker.analizando': 'Analyzing...',
+    'checker.detener': 'Stop', 'checker.total': 'Total', 'checker.aprobadas': 'Approved', 'checker.rechazadas': 'Declined',
+    'checker.ingresa_cc': 'Enter at least one card', 'checker.listo_aprobadas': 'approved',
+    'checker.listo_rechazadas': 'declined', 'checker.detenido': 'Process stopped',
+    'checker.copiado': 'Copied', 'checker.error_conexion': 'Connection error',
+    'checker.aprobada_msg': 'Approved', 'checker.rechazada_msg': 'Declined',
+    'email.tu_correo': 'Your Temp Email', 'email.actualizar': 'Refresh inbox',
+    'email.token_exp': 'Token expired — generate a new email', 'email.temporal': 'Temp Email',
+    'email.temp_desc': 'Generate a temp email to receive messages', 'email.generar': 'Generate Email',
+    'email.creando': 'Creating...', 'email.creado': 'Temp email created',
+    'email.error_crear': 'Error creating email. Check your connection.', 'email.eliminada': 'Account deleted',
+    'email.error_eliminar': 'Error deleting account', 'email.copiado': 'Email copied',
+    'email.bandeja': 'Inbox', 'email.sin_mensajes': 'No messages yet',
+    'email.mensajes_auto': 'Messages will appear here automatically', 'email.recuperando': 'Recovering email...',
+    'email.sin_contenido': 'No content', 'email.sin_asunto': 'No subject', 'email.desconocido': 'Unknown',
+    'email.error_cargar': 'Error loading message',
+    'addr.pais': 'Country', 'addr.cantidad': 'Quantity', 'addr.generar': 'Generate Addresses', 'addr.generando': 'Generating...',
+    'addr.copiar_todo': 'Copy All', 'addr.copiada': 'Address copied', 'addr.copiadas': 'addresses copied',
+    'addr.resultado': 'result', 'addr.error_gen': 'Error generating addresses. Try again.',
+    'addr.error_net': 'Connection error. Check your internet.',
+    'iban.pais': 'Country', 'iban.cantidad': 'Quantity', 'iban.generar': 'Generate IBAN',
+    'iban.copiar_todo': 'Copy All', 'iban.copiado': 'IBAN copied', 'iban.copiados': 'IBANs copied',
+    'iban.resultado': 'result', 'iban.selecciona': 'Select a valid country', 'iban.codigo': 'Code',
+    'set.tema': 'Theme', 'set.oscuro': 'Dark', 'set.claro': 'Light', 'set.apariencia': 'Change appearance',
+    'set.limpiar': 'Clear data', 'set.almacenamiento': 'Storage', 'set.limpiar_btn': 'Clear',
+    'set.confirmar': 'Confirm', 'set.no': 'No', 'set.limpiado': 'Data cleared successfully',
+    'set.fallo_limpiar': 'Could not clear', 'set.acerca': 'About', 'set.dev': 'Developed by HacheJota',
+    'set.compartir': 'Share APK', 'set.compartir_titulo': 'Share HJTools X',
+    'set.donde_compartir': 'Choose where to share the app', 'set.cancelar': 'Cancel',
+    'set.copiar_link': 'Copy Link', 'set.portapapeles': 'Copy to clipboard', 'set.copiado': 'Copied!',
+    'set.idioma': 'Language', 'set.idioma_desc': 'Select language',
+    'set.pantalla': 'Keep screen on', 'set.pantalla_desc': 'Prevent screen off',
+    'set.pantalla_no': 'Not supported on this browser',
+  },
+  pt: {
+    'nav.tarjetas': 'Tarjetas', 'nav.checker': 'Checker', 'nav.herramientas': 'Ferramentas', 'nav.ajustes': 'Ajustes',
+    'tools.title': 'Ferramentas', 'tools.subtitle': 'Selecione uma ferramenta',
+    'cards.bin': 'BIN / Modelo', 'cards.generar': 'Gerar', 'cards.resultados': 'resultados',
+    'cards.copiar_todo': 'Copiar Tudo', 'cards.copiado': 'Copiado para a área de transferência',
+    'cards.tarjetas_copiadas': 'cartões copiados', 'cards.ingresa_bin': 'Insira um BIN válido',
+    'cards.generada': 'cartão gerado', 'cards.generadas': 'cartões gerados',
+    'checker.lista': 'Lista de CC', 'checker.verificar': 'Verificar', 'checker.analizando': 'Analisando...',
+    'checker.detener': 'Parar', 'checker.total': 'Total', 'checker.aprobadas': 'Aprovadas', 'checker.rechazadas': 'Rejeitadas',
+    'checker.ingresa_cc': 'Insira pelo menos um cartão', 'checker.listo_aprobadas': 'aprovadas',
+    'checker.listo_rechazadas': 'rejeitadas', 'checker.detenido': 'Processo parado',
+    'checker.copiado': 'Copiado', 'checker.error_conexion': 'Erro de conexão',
+    'checker.aprobada_msg': 'Aprovada', 'checker.rechazada_msg': 'Rejeitada',
+    'email.tu_correo': 'Seu Email Temp', 'email.actualizar': 'Atualizar caixa',
+    'email.token_exp': 'Token expirado — gere um novo email', 'email.temporal': 'Email Temporário',
+    'email.temp_desc': 'Gere um email temporário para receber mensagens', 'email.generar': 'Gerar Email',
+    'email.creando': 'Criando...', 'email.creado': 'Email temporário criado',
+    'email.error_crear': 'Erro ao criar email. Verifique sua conexão.', 'email.eliminada': 'Conta excluída',
+    'email.error_eliminar': 'Erro ao excluir conta', 'email.copiado': 'Email copiado',
+    'email.bandeja': 'Caixa de Entrada', 'email.sin_mensajes': 'Sem mensagens ainda',
+    'email.mensajes_auto': 'As mensagens aparecerão aqui automaticamente', 'email.recuperando': 'Recuperando email...',
+    'email.sin_contenido': 'Sem conteúdo', 'email.sin_asunto': 'Sem assunto', 'email.desconocido': 'Desconhecido',
+    'email.error_cargar': 'Erro ao carregar mensagem',
+    'addr.pais': 'País', 'addr.cantidad': 'Quantidade', 'addr.generar': 'Gerar Endereços', 'addr.generando': 'Gerando...',
+    'addr.copiar_todo': 'Copiar Tudo', 'addr.copiada': 'Endereço copiado', 'addr.copiadas': 'endereços copiados',
+    'addr.resultado': 'resultado', 'addr.error_gen': 'Erro ao gerar endereços. Tente novamente.',
+    'addr.error_net': 'Erro de conexão. Verifique sua internet.',
+    'iban.pais': 'País', 'iban.cantidad': 'Quantidade', 'iban.generar': 'Gerar IBAN',
+    'iban.copiar_todo': 'Copiar Tudo', 'iban.copiado': 'IBAN copiado', 'iban.copiados': 'IBANs copiados',
+    'iban.resultado': 'resultado', 'iban.selecciona': 'Selecione um país válido', 'iban.codigo': 'Código',
+    'set.tema': 'Tema', 'set.oscuro': 'Escuro', 'set.claro': 'Claro', 'set.apariencia': 'Alterar aparência',
+    'set.limpiar': 'Limpar dados', 'set.almacenamiento': 'Armazenamento', 'set.limpiar_btn': 'Limpar',
+    'set.confirmar': 'Confirmar', 'set.no': 'Não', 'set.limpiado': 'Dados limpos com sucesso',
+    'set.fallo_limpiar': 'Não foi possível limpar', 'set.acerca': 'Sobre', 'set.dev': 'Desenvolvido por HacheJota',
+    'set.compartir': 'Compartilhar APK', 'set.compartir_titulo': 'Compartilhar HJTools X',
+    'set.donde_compartir': 'Escolha onde compartilhar o app', 'set.cancelar': 'Cancelar',
+    'set.copiar_link': 'Copiar Link', 'set.portapapeles': 'Copiar para a área de transferência', 'set.copiado': 'Copiado!',
+    'set.idioma': 'Idioma', 'set.idioma_desc': 'Selecionar idioma',
+    'set.pantalla': 'Tela ativa', 'set.pantalla_desc': 'Evitar que a tela desligue',
+    'set.pantalla_no': 'Não suportado neste navegador',
+  },
+}
+
+const LangContext = createContext<{ lang: Lang; setLang: (l: Lang) => void; t: (k: string) => string }>({
+  lang: 'es', setLang: () => {}, t: (k: string) => T.es[k] || k,
+})
+
+function useT() { return useContext(LangContext) }
+
+
 
 // ============================================================
 // BIN CACHE (module-level, persists across re-renders)
@@ -198,11 +340,11 @@ function detectCardType(bin: string): string {
 // TAB CONFIG
 // ============================================================
 
-const tabs: { id: TabId; label: string; icon: typeof CreditCard }[] = [
-  { id: 'cards', label: 'Tarjetas', icon: CreditCard },
-  { id: 'checker', label: 'Checker', icon: Search },
-  { id: 'tools', label: 'Herramientas', icon: Zap },
-  { id: 'settings', label: 'Ajustes', icon: Settings },
+const TAB_KEYS: { id: TabId; key: string; icon: typeof CreditCard }[] = [
+  { id: 'cards', key: 'nav.tarjetas', icon: CreditCard },
+  { id: 'checker', key: 'nav.checker', icon: Search },
+  { id: 'tools', key: 'nav.herramientas', icon: Zap },
+  { id: 'settings', key: 'nav.ajustes', icon: Settings },
 ]
 
 const toolCards: { id: ToolId; label: string; desc: string; icon: typeof CreditCard; color: string; bg: string }[] = [
@@ -217,11 +359,12 @@ const toolCards: { id: ToolId; label: string; desc: string; icon: typeof CreditC
 // ============================================================
 
 function ToolsGrid({ onOpen }: { onOpen: (id: ToolId) => void }) {
+  const { t } = useT()
   return (
     <div className="space-y-5 pt-2">
       <div className="text-center">
-        <h2 className="text-sm font-semibold" style={{ color: 'var(--app-text)' }}>Herramientas</h2>
-        <p className="text-[11px] mt-1" style={{ color: 'var(--app-text-dim)' }}>Selecciona una herramienta</p>
+        <h2 className="text-sm font-semibold" style={{ color: 'var(--app-text)' }}>{t('tools.title')}</h2>
+        <p className="text-[11px] mt-1" style={{ color: 'var(--app-text-dim)' }}>{t('tools.subtitle')}</p>
       </div>
       <div className="grid grid-cols-2 gap-3">
         {toolCards.map((tool) => {
@@ -253,12 +396,13 @@ function ToolsGrid({ onOpen }: { onOpen: (id: ToolId) => void }) {
 // MAIN APP COMPONENT
 // ============================================================
 
-export default function Home() {
+function HomeInner() {
+  const { t } = useT()
   const [activeTab, setActiveTab] = useState<TabId>('cards')
   const [activeTool, setActiveTool] = useState<ToolId | null>(null)
 
   const headerTitle = activeTab === 'tools' && activeTool
-    ? toolCards.find(t => t.id === activeTool)?.label || 'Herramientas'
+    ? toolCards.find(tc => tc.id === activeTool)?.label || 'Herramientas'
     : null
 
   return (
@@ -328,7 +472,7 @@ export default function Home() {
       <nav className="shrink-0 border-t" style={{ background: 'var(--app-nav)', borderColor: 'var(--app-card-border)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
         <div className="backdrop-blur-xl">
           <div className="flex items-center justify-around h-14 max-w-lg mx-auto px-1">
-            {tabs.map((tab) => {
+            {TAB_KEYS.map((tab) => {
               const Icon = tab.icon
               const isActive = activeTab === tab.id
               return (
@@ -348,7 +492,7 @@ export default function Home() {
                     <Icon className="w-5 h-5 transition-colors duration-200" style={{ color: isActive ? '#f59e0b' : undefined }} strokeWidth={isActive ? 2.2 : 1.5} />
                   </div>
                   <span className={`relative z-10 text-[10px] transition-colors duration-200 ${isActive ? 'font-bold text-amber-500' : 'font-medium'}`} style={!isActive ? { color: 'var(--app-text-dim)' } : undefined}>
-                    {tab.label}
+                    {t(tab.key)}
                   </span>
                 </button>
               )
@@ -370,6 +514,7 @@ interface BinInfo {
 }
 
 function CardsTab() {
+  const { t } = useT()
   const [bin, setBin] = useState('')
   const [quantity, setQuantity] = useState('10')
   const [customMonth, setCustomMonth] = useState('')
@@ -407,7 +552,7 @@ function CardsTab() {
 
   const handleGenerate = useCallback(() => {
     if (!bin.trim()) {
-      toast.error('Ingresa un BIN válido')
+      toast.error(t('cards.ingresa_bin'))
       return
     }
     const qty = Math.min(Math.max(parseInt(quantity) || 1, 1), 100)
@@ -419,14 +564,14 @@ function CardsTab() {
       generated.push(generateCardFromBin(bin.trim(), type, m, y))
     }
     setCards(generated)
-    toast.success(`${qty} tarjeta${qty > 1 ? 's' : ''} generada${qty > 1 ? 's' : ''}`)
+    toast.success(`${qty} ${qty > 1 ? t('cards.generadas') : t('cards.generada')}`)
   }, [bin, quantity, customMonth, customYear])
 
   const copyCard = useCallback(async (card: GeneratedCard, idx: number) => {
     const text = `${card.number}|${card.month}|${card.year}|${card.cvv}`
     await navigator.clipboard.writeText(text)
     setCopiedIdx(idx)
-    toast.success('Copiado al portapapeles')
+    toast.success(t('cards.copiado'))
     setTimeout(() => setCopiedIdx(null), 1500)
   }, [])
 
@@ -435,7 +580,7 @@ function CardsTab() {
     const text = cards.map(c => `${c.number}|${c.month}|${c.year}|${c.cvv}`).join('\n')
     await navigator.clipboard.writeText(text)
     setCopiedAll(true)
-    toast.success(`${cards.length} tarjetas copiadas`)
+    toast.success(`${cards.length} ${t('cards.tarjetas_copiadas')}`)
     setTimeout(() => setCopiedAll(false), 2000)
   }, [cards])
 
@@ -443,7 +588,7 @@ function CardsTab() {
     <div className="space-y-4">
       {/* BIN Input */}
       <div className="bg-[#111113] theme-card rounded-xl border border-white/[0.06] p-4 space-y-3">
-        <label className="text-xs font-medium text-white/50 theme-text-dim uppercase tracking-wider">BIN / Plantilla</label>
+        <label className="text-xs font-medium text-white/50 theme-text-dim uppercase tracking-wider">{t('cards.bin')}</label>
         <input
           type="text"
           value={bin}
@@ -466,7 +611,7 @@ function CardsTab() {
             onChange={(e) => setCustomMonth(e.target.value)}
             className="flex-1 bg-[#09090b] theme-input border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white theme-text focus:outline-none focus:border-amber-500/50 transition-colors"
           >
-            <option value="">Mes (Rnd)</option>
+            <option value="">{t('cards.mes')} (Rnd)</option>
             {Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0')).map(m => (
               <option key={m} value={m}>{m}</option>
             ))}
@@ -476,7 +621,7 @@ function CardsTab() {
             onChange={(e) => setCustomYear(e.target.value)}
             className="flex-1 bg-[#09090b] theme-input border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white theme-text focus:outline-none focus:border-amber-500/50 transition-colors"
           >
-            <option value="">Año (Rnd)</option>
+            <option value="">{t('cards.ano')} (Rnd)</option>
             {Array.from({ length: 10 }, (_, i) => {
               const y = (new Date().getFullYear() + i).toString()
               return <option key={y} value={y}>{y}</option>
@@ -488,7 +633,7 @@ function CardsTab() {
           className="w-full bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-black font-bold rounded-xl py-3 text-sm transition-all duration-300 flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 hover:shadow-amber-500/30 active:scale-[0.98]"
         >
           <Zap className="w-4 h-4" />
-          Generar
+          {t('cards.generar')}
         </button>
       </div>
 
@@ -496,13 +641,13 @@ function CardsTab() {
       {cards.length > 0 && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-white/40 theme-text-dim">{cards.length} resultado{cards.length > 1 ? 's' : ''}</span>
+            <span className="text-xs text-white/40 theme-text-dim">{cards.length} {t('cards.resultados')}</span>
             <button
               onClick={copyAll}
               className="flex items-center gap-1.5 text-xs text-amber-500 hover:text-amber-400 transition-colors"
             >
               {copiedAll ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-              Copiar Todo
+              {t('cards.copiar_todo')}
             </button>
           </div>
 
@@ -573,6 +718,7 @@ function CardsTab() {
 // ============================================================
 
 function CheckerTab() {
+  const { t } = useT()
   const [ccList, setCcList] = useState('')
   const [results, setResults] = useState<CheckResult[]>([])
   const [isRunning, setIsRunning] = useState(false)
@@ -582,7 +728,7 @@ function CheckerTab() {
   const startCheck = useCallback(async () => {
     const lines = ccList.trim().split('\n').filter(l => l.trim())
     if (lines.length === 0) {
-      toast.error('Ingresa al menos una tarjeta')
+      toast.error(t('checker.ingresa_cc'))
       return
     }
 
@@ -620,7 +766,7 @@ function CheckerTab() {
           setResults(prev =>
             prev.map((r, i) =>
               i === prev.length - 1
-                ? { ...r, status: 'live', message: data.msg || 'Aprobada', brand: data.brand || data.type, bank: data.bank || data.issuer }
+                ? { ...r, status: 'live', message: data.msg || t('checker.aprobada_msg'), brand: data.brand || data.type, bank: data.bank || data.issuer }
                 : r
             )
           )
@@ -629,7 +775,7 @@ function CheckerTab() {
           setResults(prev =>
             prev.map((r, i) =>
               i === prev.length - 1
-                ? { ...r, status: 'dead', message: data.msg || data.message || 'Rechazada' }
+                ? { ...r, status: 'dead', message: data.msg || data.message || t('checker.rechazada_msg') }
                 : r
             )
           )
@@ -641,7 +787,7 @@ function CheckerTab() {
         total++
         setResults(prev =>
           prev.map((r, i) =>
-            i === prev.length - 1 ? { ...r, status: 'error', message: 'Error de conexión' } : r
+            i === prev.length - 1 ? { ...r, status: 'error', message: t('checker.error_conexion') } : r
           )
         )
         setStats({ total, live, dead })
@@ -651,13 +797,13 @@ function CheckerTab() {
     }
 
     setIsRunning(false)
-    toast.success(`Listo: ${live} aprobadas, ${dead} rechazadas`)
+    toast.success(`${t('checker.total')}: ${live} ${t('checker.listo_aprobadas')}, ${dead} ${t('checker.listo_rechazadas')}`)
   }, [ccList])
 
   const stopCheck = useCallback(() => {
     stopRef.current = true
     setIsRunning(false)
-    toast.info('Proceso detenido')
+    toast.info(t('checker.detenido'))
   }, [])
 
   const liveResults = results.filter(r => r.status === 'live')
@@ -667,7 +813,7 @@ function CheckerTab() {
     <div className="space-y-4">
       {/* Input */}
       <div className="bg-[#111113] theme-card rounded-xl border border-white/[0.06] p-4 space-y-3">
-        <label className="text-xs font-medium text-white/50 theme-text-dim uppercase tracking-wider">Lista de CC</label>
+        <label className="text-xs font-medium text-white/50 theme-text-dim uppercase tracking-wider">{t('checker.lista')}</label>
         <textarea
           value={ccList}
           onChange={(e) => setCcList(e.target.value)}
@@ -682,7 +828,7 @@ function CheckerTab() {
             className="flex-1 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 disabled:opacity-50 disabled:cursor-not-allowed text-black font-bold rounded-xl py-3 text-sm transition-all duration-300 flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 active:scale-[0.98]"
           >
             {isRunning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-            {isRunning ? 'Analizando...' : 'Verificar'}
+            {isRunning ? t('checker.analizando') : t('checker.verificar')}
           </button>
           {isRunning && (
             <motion.button
@@ -692,7 +838,7 @@ function CheckerTab() {
               className="bg-red-500/15 hover:bg-red-500/25 border border-red-500/20 text-red-400 font-bold rounded-xl px-5 py-3 text-sm transition-all duration-200 flex items-center gap-2 active:scale-[0.98]"
             >
               <Square className="w-4 h-4" />
-              Detener
+              {t('checker.detener')}
             </motion.button>
           )}
         </div>
@@ -703,15 +849,15 @@ function CheckerTab() {
         <div className="grid grid-cols-3 gap-2">
           <div className="rounded-xl border border-white/[0.06] p-3 text-center" style={{ background: 'var(--app-card)' }}>
             <p className="text-xl font-bold font-mono" style={{ color: 'var(--app-text)' }}>{stats.total}</p>
-            <p className="text-[10px] uppercase tracking-wider font-medium mt-0.5" style={{ color: 'var(--app-text-dim)' }}>Total</p>
+            <p className="text-[10px] uppercase tracking-wider font-medium mt-0.5" style={{ color: 'var(--app-text-dim)' }}>{t('checker.total')}</p>
           </div>
           <div className="rounded-xl border border-green-500/20 p-3 text-center bg-green-500/5">
             <p className="text-xl font-bold font-mono text-green-500">{stats.live}</p>
-            <p className="text-[10px] uppercase tracking-wider font-medium mt-0.5 text-green-500/60">Aprobadas</p>
+            <p className="text-[10px] uppercase tracking-wider font-medium mt-0.5 text-green-500/60">{t('checker.aprobadas')}</p>
           </div>
           <div className="rounded-xl border border-red-500/20 p-3 text-center bg-red-500/5">
             <p className="text-xl font-bold font-mono text-red-500">{stats.dead}</p>
-            <p className="text-[10px] uppercase tracking-wider font-medium mt-0.5 text-red-500/60">Rechazadas</p>
+            <p className="text-[10px] uppercase tracking-wider font-medium mt-0.5 text-red-500/60">{t('checker.rechazadas')}</p>
           </div>
         </div>
       )}
@@ -720,7 +866,7 @@ function CheckerTab() {
       {liveResults.length > 0 && (
         <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <h3 className="text-xs font-medium text-green-500/70 uppercase tracking-wider">Aprobadas</h3>
+            <h3 className="text-xs font-medium text-green-500/70 uppercase tracking-wider">{t('checker.aprobadas')}</h3>
             <div className="flex-1 h-px bg-green-500/10" />
           </div>
           <div className="max-h-48 overflow-y-auto space-y-1.5 custom-scrollbar">
@@ -744,7 +890,7 @@ function CheckerTab() {
                   )}
                 </div>
                 <button
-                  onClick={() => { navigator.clipboard.writeText(r.cc); toast.success('Copiado') }}
+                  onClick={() => { navigator.clipboard.writeText(r.cc); toast.success(t('checker.copiado')) }}
                   className="p-1.5 hover:bg-green-500/10 rounded-lg transition-colors"
                 >
                   <Copy className="w-3.5 h-3.5 text-green-500/50" />
@@ -759,7 +905,7 @@ function CheckerTab() {
       {dotResults.length > 0 && (
         <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <h3 className="text-xs font-medium text-red-500/70 uppercase tracking-wider">Rechazadas</h3>
+            <h3 className="text-xs font-medium text-red-500/70 uppercase tracking-wider">{t('checker.rechazadas')}</h3>
             <div className="flex-1 h-px bg-red-500/10" />
           </div>
           <div className="flex flex-wrap gap-1.5">
@@ -788,6 +934,7 @@ function IptvTab() {
 // ============================================================
 
 function EmailTab() {
+  const { t: tt } = useT()
   const [account, setAccount] = useState<EmailAccount | null>(null)
   const [messages, setMessages] = useState<EmailMessage[]>([])
   const [selectedMsg, setSelectedMsg] = useState<{ id: string; from: string; subject: string; body: string } | null>(null)
@@ -888,7 +1035,7 @@ function EmailTab() {
 
         // 422 = bad address, don't retry
         if (createRes.status === 422) {
-          toast.error('Error al crear cuenta. Intentando de nuevo...')
+          toast.error(tt('email.error_crear'))
           // Try with a different username
           username = ''
           for (let i = 0; i < 10; i++) {
@@ -904,7 +1051,7 @@ function EmailTab() {
       }
 
       if (!accountData) {
-        toast.error('No se pudo crear la cuenta. Intenta de nuevo.')
+        toast.error(tt('email.error_crear'))
         return
       }
 
@@ -931,7 +1078,7 @@ function EmailTab() {
       }
 
       if (!token) {
-        toast.error('No se pudo obtener el token. Intenta de nuevo.')
+        toast.error(tt('email.error_crear'))
         return
       }
 
@@ -944,21 +1091,21 @@ function EmailTab() {
       setAccount(newAccount)
       setMessages([])
       setSelectedMsg(null)
-      toast.success('Correo temporal creado')
+      toast.success(tt('email.creado'))
 
       // Email is fully client-side — no server DB save needed
 
     } catch {
-      toast.error('Error al crear correo. Verifica tu conexión.')
+      toast.error(tt('email.error_crear'))
     } finally {
       setIsCreating(false)
     }
   }, [])
 
   const fetchMessages = useCallback(async (token?: string) => {
-    const t = token || account?.token
+    const tok = token || account?.token
     const p = account?.provider || 'mail.tm'
-    if (!t) return
+    if (!tok) return
 
     try {
       // ── DIRECT to mail.tm (bypasses Vercel) ──
@@ -966,13 +1113,13 @@ function EmailTab() {
       const res = await fetch(`${baseUrl}/messages`, {
         headers: {
           'Accept': 'application/ld+json',
-          'Authorization': `Bearer ${t}`,
+          'Authorization': `Bearer ${tok}`,
         },
       })
 
       if (res.status === 401) {
         setTokenExpired(true)
-        toast.error('Token expirado — genera un nuevo correo')
+        toast.error(tt('email.token_exp'))
         return
       }
 
@@ -1010,7 +1157,7 @@ function EmailTab() {
         ? data.html.join('')
         : (typeof data.html === 'string' ? data.html : '')
 
-      const body = htmlContent || data.text || msg.intro || 'Sin contenido'
+      const body = htmlContent || data.text || msg.intro || tt('email.sin_contenido')
 
       setSelectedMsg({
         id: data.id,
@@ -1019,7 +1166,7 @@ function EmailTab() {
         body: sanitizeHtml(body),
       })
     } catch {
-      toast.error('Error al cargar mensaje')
+      toast.error(tt('email.error_cargar'))
     } finally {
       setIsLoadingMsg(false)
     }
@@ -1044,9 +1191,9 @@ function EmailTab() {
       setSelectedMsg(null)
       setTokenExpired(false)
       if (refreshIntervalRef.current) clearInterval(refreshIntervalRef.current)
-      toast.success('Cuenta eliminada')
+      toast.success(tt('email.eliminada'))
     } catch {
-      toast.error('Error al eliminar cuenta')
+      toast.error(tt('email.error_eliminar'))
     }
   }, [account])
 
@@ -1054,7 +1201,7 @@ function EmailTab() {
     if (!account) return
     await navigator.clipboard.writeText(account.address)
     setCopiedEmail(true)
-    toast.success('Correo copiado')
+    toast.success(tt('email.copiado'))
     setTimeout(() => setCopiedEmail(false), 1500)
   }, [account])
 
@@ -1104,7 +1251,7 @@ function EmailTab() {
       <div className="space-y-4">
         <div className="bg-[#111113] theme-card rounded-xl border border-white/[0.06] p-8 text-center">
           <Loader2 className="w-8 h-8 text-amber-500 animate-spin mx-auto" />
-          <p className="text-xs text-white/40 theme-text-dim mt-3">Recuperando correo...</p>
+          <p className="text-xs text-white/40 theme-text-dim mt-3">{tt('email.recuperando')}</p>
         </div>
       </div>
     )
@@ -1117,7 +1264,7 @@ function EmailTab() {
         {account ? (
           <>
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-white/50 theme-text-dim uppercase tracking-wider">Tu Correo Temporal</span>
+              <span className="text-xs font-medium text-white/50 theme-text-dim uppercase tracking-wider">{tt('email.tu_correo')}</span>
               <button
                 onClick={deleteAccount}
                 className="p-1.5 rounded-lg hover:bg-red-500/10 text-red-400/60 hover:text-red-400 transition-colors"
@@ -1139,12 +1286,12 @@ function EmailTab() {
               className="flex items-center gap-1.5 text-xs text-amber-500/70 hover:text-amber-500 transition-colors"
             >
               <RefreshCw className="w-3 h-3" />
-              Actualizar bandeja
+              {tt('email.actualizar')}
             </button>
             {tokenExpired && (
               <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 mt-2">
                 <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0" />
-                <span className="text-xs text-red-400">Token expirado — genera un nuevo correo</span>
+                <span className="text-xs text-red-400">{tt('email.token_exp')}</span>
               </div>
             )}
           </>
@@ -1157,9 +1304,9 @@ function EmailTab() {
                   <Mail className="w-7 h-7 text-amber-500/50" />
                 </div>
               </div>
-              <p className="text-sm font-medium mb-1" style={{ color: 'var(--app-text-70)' }}>Correo Temporal</p>
+              <p className="text-sm font-medium mb-1" style={{ color: 'var(--app-text-70)' }}>{tt('email.temporal')}</p>
               <p className="text-xs mb-5 max-w-[220px] mx-auto" style={{ color: 'var(--app-text-dim)' }}>
-                Genera un correo temporal para recibir mensajes
+                {tt('email.temp_desc')}
               </p>
               <button
                 onClick={createEmail}
@@ -1167,7 +1314,7 @@ function EmailTab() {
                 className="bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 disabled:opacity-50 text-black font-bold rounded-xl px-8 py-3 text-sm transition-all duration-300 flex items-center justify-center gap-2 mx-auto shadow-lg shadow-amber-500/20 active:scale-[0.98]"
               >
                 {isCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                {isCreating ? 'Creando...' : 'Generar Correo'}
+                {isCreating ? tt('email.creando') : tt('email.generar')}
               </button>
             </div>
           </>
@@ -1178,13 +1325,13 @@ function EmailTab() {
       {account && (
         <div className="space-y-2">
           <h3 className="text-xs font-medium text-white/50 theme-text-dim uppercase tracking-wider">
-            Bandeja de Entrada ({messages.length})
+            {tt('email.bandeja')} ({messages.length})
           </h3>
 
           {messages.length === 0 ? (
             <div className="text-center py-8 bg-[#111113] theme-card rounded-xl border border-white/[0.06]">
-              <p className="text-sm text-white/30 theme-text-dim">Sin mensajes aún</p>
-              <p className="text-xs text-white/20 theme-text-faint mt-1">Los mensajes aparecerán aquí automáticamente</p>
+              <p className="text-sm text-white/30 theme-text-dim">{tt('email.sin_mensajes')}</p>
+              <p className="text-xs text-white/20 theme-text-faint mt-1">{tt('email.mensajes_auto')}</p>
             </div>
           ) : (
             <div className="max-h-96 overflow-y-auto space-y-1.5 custom-scrollbar">
@@ -1202,14 +1349,14 @@ function EmailTab() {
                       <div className="flex items-center gap-2 mb-0.5">
                         <div className="w-6 h-6 rounded-full bg-amber-500/15 flex items-center justify-center shrink-0">
                           <span className="text-[10px] font-bold text-amber-500">
-                            {(msg.from?.name || msg.from?.address || 'D')[0].toUpperCase()}
+                            {(msg.from?.name || msg.from?.address || tt('email.desconocido'))[0].toUpperCase()}
                           </span>
                         </div>
                         <p className="text-xs font-medium truncate" style={{ color: 'var(--app-text-80)' }}>
-                          {msg.from?.name || msg.from?.address || 'Desconocido'}
+                          {msg.from?.name || msg.from?.address || tt('email.desconocido')}
                         </p>
                       </div>
-                      <p className="text-sm truncate pl-8" style={{ color: 'var(--app-text-60)' }}>{msg.subject || 'Sin asunto'}</p>
+                      <p className="text-sm truncate pl-8" style={{ color: 'var(--app-text-60)' }}>{msg.subject || tt('email.sin_asunto')}</p>
                       {msg.intro && <p className="text-xs truncate pl-8 mt-0.5" style={{ color: 'var(--app-text-dim)' }}>{msg.intro}</p>}
                     </div>
                     <span className="text-[10px] shrink-0 mt-0.5" style={{ color: 'var(--app-text-faint)' }}>
@@ -1270,6 +1417,7 @@ const NAT_MAP: Record<string, string> = {
 }
 
 function AddressTab() {
+  const { t } = useT()
   const [selectedCountry, setSelectedCountry] = useState('US')
   const [quantity, setQuantity] = useState('5')
   const [addresses, setAddresses] = useState<GeneratedAddress[]>([])
@@ -1290,7 +1438,7 @@ function AddressTab() {
       const data = await res.json()
 
       if (data.error) {
-        toast.error('Error al generar direcciones. Intenta de nuevo.')
+        toast.error(t('addr.error_gen'))
         return
       }
 
@@ -1312,9 +1460,9 @@ function AddressTab() {
       })
 
       setAddresses(results)
-      toast.success(`${results.length} dirección${results.length > 1 ? 'es' : ''} generada${results.length > 1 ? 's' : ''}`)
+      toast.success(`${qty} ${t('addr.resultado')}${results.length > 1 ? 's' : ''}`)
     } catch {
-      toast.error('Error de conexión. Verifica tu internet.')
+      toast.error(t('addr.error_net'))
     } finally {
       setIsGenerating(false)
     }
@@ -1324,7 +1472,7 @@ function AddressTab() {
     const text = `${addr.street}\n${addr.city}, ${addr.state} ${addr.postcode}\n${addr.country}\nTel: ${addr.phone}`
     await navigator.clipboard.writeText(text)
     setCopiedIdx(idx)
-    toast.success('Dirección copiada')
+    toast.success(t('addr.copiada'))
     setTimeout(() => setCopiedIdx(null), 1500)
   }, [])
 
@@ -1335,7 +1483,7 @@ function AddressTab() {
     ).join('\n')
     await navigator.clipboard.writeText(text)
     setCopiedAll(true)
-    toast.success(`${addresses.length} direcciones copiadas`)
+    toast.success(`${addresses.length} ${t('addr.copiadas')}`)
     setTimeout(() => setCopiedAll(false), 2000)
   }, [addresses])
 
@@ -1343,7 +1491,7 @@ function AddressTab() {
     <div className="space-y-4">
       {/* Country & Quantity Selector */}
       <div className="bg-[#111113] theme-card rounded-xl border border-white/[0.06] p-4 space-y-3">
-        <label className="text-xs font-medium text-white/50 theme-text-dim uppercase tracking-wider">País</label>
+        <label className="text-xs font-medium text-white/50 theme-text-dim uppercase tracking-wider">{t('addr.pais')}</label>
         <select
           value={selectedCountry}
           onChange={(e) => setSelectedCountry(e.target.value)}
@@ -1356,7 +1504,7 @@ function AddressTab() {
 
         <div className="flex gap-2">
           <div className="flex-1">
-            <label className="text-xs font-medium text-white/50 theme-text-dim uppercase tracking-wider">Cantidad</label>
+            <label className="text-xs font-medium text-white/50 theme-text-dim uppercase tracking-wider">{t('addr.cantidad')}</label>
             <input
               type="number"
               value={quantity}
@@ -1375,7 +1523,7 @@ function AddressTab() {
           className="w-full bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 disabled:opacity-50 text-black font-bold rounded-xl py-3 text-sm transition-all duration-300 flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 hover:shadow-amber-500/30 active:scale-[0.98]"
         >
           {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <MapPin className="w-4 h-4" />}
-          {isGenerating ? 'Generando...' : 'Generar Direcciones'}
+          {isGenerating ? t('addr.generando') : t('addr.generar')}
         </button>
       </div>
 
@@ -1383,13 +1531,13 @@ function AddressTab() {
       {addresses.length > 0 && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-white/40 theme-text-dim">{addresses.length} resultado{addresses.length > 1 ? 's' : ''}</span>
+            <span className="text-xs text-white/40 theme-text-dim">{addresses.length} {t('addr.resultado')}{addresses.length > 1 ? 's' : ''}</span>
             <button
               onClick={copyAll}
               className="flex items-center gap-1.5 text-xs text-amber-500 hover:text-amber-400 transition-colors"
             >
               {copiedAll ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-              Copiar Todo
+              {t('addr.copiar_todo')}
             </button>
           </div>
 
@@ -1453,6 +1601,7 @@ function AddressTab() {
 // ============================================================
 
 function IbanTab() {
+  const { t } = useT()
   const [selectedCountry, setSelectedCountry] = useState('ES')
   const [quantity, setQuantity] = useState('5')
   const [ibans, setIbans] = useState<{ iban: string; country: IbanCountry }[]>([])
@@ -1462,7 +1611,7 @@ function IbanTab() {
   const handleGenerate = useCallback(() => {
     const country = IBAN_COUNTRIES.find(c => c.code === selectedCountry)
     if (!country) {
-      toast.error('Selecciona un país válido')
+      toast.error(t('iban.selecciona'))
       return
     }
     const qty = Math.min(Math.max(parseInt(quantity) || 1, 1), 100)
@@ -1479,7 +1628,7 @@ function IbanTab() {
   const copyIban = useCallback(async (iban: string, idx: number) => {
     await navigator.clipboard.writeText(iban)
     setCopiedIdx(idx)
-    toast.success('IBAN copiado')
+    toast.success(t('iban.copiado'))
     setTimeout(() => setCopiedIdx(null), 1500)
   }, [])
 
@@ -1488,7 +1637,7 @@ function IbanTab() {
     const text = ibans.map(i => i.iban).join('\n')
     await navigator.clipboard.writeText(text)
     setCopiedAll(true)
-    toast.success(`${ibans.length} IBANs copiados`)
+    toast.success(`${ibans.length} ${t('iban.copiados')}`)
     setTimeout(() => setCopiedAll(false), 2000)
   }, [ibans])
 
@@ -1541,7 +1690,7 @@ function IbanTab() {
               className="flex items-center gap-1.5 text-xs text-amber-500 hover:text-amber-400 transition-colors"
             >
               {copiedAll ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-              Copiar Todo
+              {t('iban.copiar_todo')}
             </button>
           </div>
 
@@ -1602,6 +1751,7 @@ function IbanTab() {
 // ============================================================
 
 function SettingsTab() {
+  const { t, lang, setLang } = useT()
   const [isDark, setIsDark] = useState(() => {
     if (typeof window !== 'undefined') {
       return document.documentElement.classList.contains('dark')
@@ -1612,6 +1762,9 @@ function SettingsTab() {
   const [copiedLink, setCopiedLink] = useState(false)
   const [storageUsed, setStorageUsed] = useState('')
   const [showClearConfirm, setShowClearConfirm] = useState(false)
+  const [wakeLockActive, setWakeLockActive] = useState(false)
+  const [wakeLockSupported, setWakeLockSupported] = useState(true)
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null)
 
   const APK_URL = 'https://www.mediafire.com/file/2gsvk7962tqqonv/HJTools_X.apk/file'
   const SHARE_TEXT = 'Descarga HJTools X - La toolkit todo en uno'
@@ -1620,8 +1773,29 @@ function SettingsTab() {
   // Calculate storage on mount
   useEffect(() => {
     refreshStorageSize()
+    if (typeof window !== 'undefined' && !('wakeLock' in navigator)) {
+      setWakeLockSupported(false)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  const toggleWakeLock = useCallback(async () => {
+    if (!wakeLockSupported) return
+    try {
+      if (wakeLockActive && wakeLockRef.current) {
+        await wakeLockRef.current.release()
+        wakeLockRef.current = null
+        setWakeLockActive(false)
+      } else {
+        const wl = await navigator.wakeLock.request('screen')
+        wl.addEventListener('release', () => setWakeLockActive(false))
+        wakeLockRef.current = wl
+        setWakeLockActive(true)
+      }
+    } catch {
+      setWakeLockActive(false)
+    }
+  }, [wakeLockActive, wakeLockSupported])
 
   const handleShare = useCallback(async () => {
     if (navigator.share) {
@@ -1646,9 +1820,9 @@ function SettingsTab() {
   const copyLink = useCallback(async () => {
     await navigator.clipboard.writeText(SHARE_FULL)
     setCopiedLink(true)
-    toast.success('Link copiado al portapapeles')
+    toast.success(t('set.portapapeles'))
     setTimeout(() => setCopiedLink(false), 2000)
-  }, [])
+  }, [t])
 
   const toggleTheme = useCallback(() => {
     const html = document.documentElement
@@ -1677,17 +1851,17 @@ function SettingsTab() {
   const clearStorage = useCallback(() => {
     try {
       const keys = Object.keys(localStorage)
-      const toKeep = ['theme']
+      const toKeep = ['theme', 'lang']
       keys.forEach(k => {
         if (!toKeep.includes(k)) localStorage.removeItem(k)
       })
       refreshStorageSize()
       setShowClearConfirm(false)
-      toast.success('Datos limpiados correctamente')
+      toast.success(t('set.limpiado'))
     } catch {
-      toast.error('No se pudo limpiar')
+      toast.error(t('set.fallo_limpiar'))
     }
-  }, [refreshStorageSize])
+  }, [refreshStorageSize, t])
 
   useEffect(() => {
     const saved = localStorage.getItem('theme')
@@ -1721,8 +1895,8 @@ function SettingsTab() {
           <div className="flex items-center gap-3">
             {isDark ? <Moon className="w-[18px] h-[18px] text-amber-500" /> : <Sun className="w-[18px] h-[18px] text-amber-500" />}
             <div>
-              <p className="text-[13px] font-medium">Tema {isDark ? 'Oscuro' : 'Claro'}</p>
-              <p className="text-[11px]" style={{ color: 'var(--app-text-dim)' }}>Cambiar apariencia</p>
+              <p className="text-[13px] font-medium">{t('set.tema')} {isDark ? t('set.oscuro') : t('set.claro')}</p>
+              <p className="text-[11px]" style={{ color: 'var(--app-text-dim)' }}>{t('set.apariencia')}</p>
             </div>
           </div>
           <button
@@ -1734,7 +1908,52 @@ function SettingsTab() {
         </div>
       </div>
 
-      {/* Limpiar datos — the one the user liked */}
+      {/* Language Selector */}
+      <div className="rounded-2xl border p-3.5" style={{ background: 'var(--app-card)', borderColor: 'var(--app-card-border)' }}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Globe className="w-[18px] h-[18px] text-amber-500" />
+            <div>
+              <p className="text-[13px] font-medium">{t('set.idioma')}</p>
+              <p className="text-[11px]" style={{ color: 'var(--app-text-dim)' }}>{t('set.idioma_desc')}</p>
+            </div>
+          </div>
+          <select
+            value={lang}
+            onChange={(e) => setLang(e.target.value as Lang)}
+            className="bg-white/[0.08] border border-white/[0.1] rounded-lg px-2.5 py-1.5 text-[12px] font-medium focus:outline-none focus:border-amber-500/50 transition-colors"
+            style={{ color: 'var(--app-text)' }}
+          >
+            {(Object.keys(LANG_LABELS) as Lang[]).map(l => (
+              <option key={l} value={l} style={{ background: '#111113', color: '#fff' }}>{LANG_LABELS[l]}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Screen Wake Lock */}
+      <div className="rounded-2xl border p-3.5" style={{ background: 'var(--app-card)', borderColor: 'var(--app-card-border)' }}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <MonitorSmartphone className="w-[18px] h-[18px] text-amber-500" />
+            <div>
+              <p className="text-[13px] font-medium">{t('set.pantalla')}</p>
+              <p className="text-[11px]" style={{ color: 'var(--app-text-dim)' }}>
+                {wakeLockSupported ? t('set.pantalla_desc') : t('set.pantalla_no')}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={toggleWakeLock}
+            disabled={!wakeLockSupported}
+            className={`relative w-11 h-6 rounded-full transition-colors ${wakeLockActive ? 'bg-amber-500' : 'bg-gray-400'} ${!wakeLockSupported ? 'opacity-40 cursor-not-allowed' : ''}`}
+          >
+            <div className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200" style={{ transform: wakeLockActive ? 'translateX(22px)' : 'translateX(2px)' }} />
+          </button>
+        </div>
+      </div>
+
+      {/* Clear Data */}
       <div className="rounded-2xl border p-3.5" style={{ background: 'var(--app-card)', borderColor: 'var(--app-card-border)' }}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -1742,8 +1961,8 @@ function SettingsTab() {
               <Trash2 className="w-[18px] h-[18px] text-rose-400" />
             </div>
             <div>
-              <p className="text-[13px] font-medium">Limpiar datos</p>
-              <p className="text-[11px]" style={{ color: 'var(--app-text-dim)' }}>Almacenamiento: {storageUsed}</p>
+              <p className="text-[13px] font-medium">{t('set.limpiar')}</p>
+              <p className="text-[11px]" style={{ color: 'var(--app-text-dim)' }}>{t('set.almacenamiento')}: {storageUsed}</p>
             </div>
           </div>
           {!showClearConfirm ? (
@@ -1751,7 +1970,7 @@ function SettingsTab() {
               onClick={() => setShowClearConfirm(true)}
               className="text-[11px] px-3 py-1.5 rounded-lg bg-rose-500/15 text-rose-400 font-medium transition-colors hover:bg-rose-500/25"
             >
-              Limpiar
+              {t('set.limpiar_btn')}
             </button>
           ) : (
             <div className="flex items-center gap-1.5">
@@ -1759,14 +1978,14 @@ function SettingsTab() {
                 onClick={clearStorage}
                 className="text-[11px] px-3 py-1.5 rounded-lg bg-rose-500 text-white font-medium transition-colors hover:bg-rose-400"
               >
-                Confirmar
+                {t('set.confirmar')}
               </button>
               <button
                 onClick={() => setShowClearConfirm(false)}
                 className="text-[11px] px-3 py-1.5 rounded-lg bg-white/[0.08] font-medium transition-colors hover:bg-white/[0.12]"
                 style={{ color: 'var(--app-text-dim)' }}
               >
-                No
+                {t('set.no')}
               </button>
             </div>
           )}
@@ -1777,14 +1996,14 @@ function SettingsTab() {
       <div className="rounded-2xl border p-3.5 space-y-2.5" style={{ background: 'var(--app-card)', borderColor: 'var(--app-card-border)' }}>
         <div className="flex items-center gap-2">
           <Info className="w-4 h-4" style={{ color: 'var(--app-text-dim)' }} />
-          <h3 className="text-[11px] font-medium uppercase tracking-wider" style={{ color: 'var(--app-text-dim)' }}>Acerca de</h3>
+          <h3 className="text-[11px] font-medium uppercase tracking-wider" style={{ color: 'var(--app-text-dim)' }}>{t('set.acerca')}</h3>
         </div>
         <p className="text-[11px] leading-relaxed" style={{ color: 'var(--app-text-dim)' }}>
           HJTools X — Generador de Tarjetas, CCS Checker, IPTV Checker, Generador de Correo, Direcciones e IBAN.
         </p>
         <div className="flex items-center gap-2">
           <Zap className="w-3 h-3 text-amber-500/40" />
-          <span className="text-[11px]" style={{ color: 'var(--app-text-faint)' }}>Desarrollado por HacheJota</span>
+          <span className="text-[11px]" style={{ color: 'var(--app-text-faint)' }}>{t('set.dev')}</span>
         </div>
         <div className="flex items-center gap-4 pt-1">
           <a href="https://wa.me/524437863111" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-[11px] text-green-400/70 hover:text-green-400 transition-colors">
@@ -1802,7 +2021,7 @@ function SettingsTab() {
         className="relative w-full overflow-hidden flex items-center justify-center gap-2.5 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:via-amber-300 hover:to-amber-400 text-black font-bold rounded-2xl py-3.5 text-[13px] transition-all duration-300 shadow-lg shadow-amber-500/25 hover:shadow-amber-500/40 hover:scale-[1.02] active:scale-[0.98]"
       >
         <Share2 className="w-4 h-4" />
-        Compartir APK
+        {t('set.compartir')}
         <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full animate-[shimmer_3s_infinite]" />
       </button>
 
@@ -1828,8 +2047,8 @@ function SettingsTab() {
             >
               <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mb-5" />
               <div className="text-center mb-5">
-                <h3 className="text-base font-bold text-white">Compartir HJTools X</h3>
-                <p className="text-[11px] text-white/40 mt-1">Elige dónde compartir la app</p>
+                <h3 className="text-base font-bold text-white">{t('set.compartir_titulo')}</h3>
+                <p className="text-[11px] text-white/40 mt-1">{t('set.donde_compartir')}</p>
               </div>
               <div className="space-y-3">
                 <button onClick={shareWhatsApp} className="w-full flex items-center gap-3 bg-[#25D366]/15 hover:bg-[#25D366]/25 border border-[#25D366]/20 rounded-xl px-4 py-3 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]">
@@ -1857,18 +2076,37 @@ function SettingsTab() {
                     {copiedLink ? <Check className="w-5 h-5 text-green-500" /> : <Copy className="w-5 h-5 text-white/60" />}
                   </div>
                   <div className="text-left flex-1">
-                    <p className="text-[13px] font-semibold text-white/90">{copiedLink ? 'Copiado!' : 'Copiar Link'}</p>
-                    <p className="text-[11px] text-white/40">Copiar al portapapeles</p>
+                    <p className="text-[13px] font-semibold text-white/90">{copiedLink ? t('set.copiado') : t('set.copiar_link')}</p>
+                    <p className="text-[11px] text-white/40">{t('set.portapapeles')}</p>
                   </div>
                 </button>
               </div>
               <button onClick={() => setShowSharePanel(false)} className="w-full mt-4 py-3 rounded-xl text-[13px] text-white/50 hover:text-white/70 hover:bg-white/[0.04] transition-all">
-                Cancelar
+                {t('set.cancelar')}
               </button>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
     </div>
+  )
+}
+
+export default function Home() {
+  const [lang, setLang] = useState<Lang>(() => {
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem('lang') as Lang) || 'es'
+    }
+    return 'es'
+  })
+
+  useEffect(() => {
+    localStorage.setItem('lang', lang)
+  }, [lang])
+
+  return (
+    <LangContext.Provider value={{ lang, setLang, t: (k: string) => T[lang]?.[k] || T.es[k] || k }}>
+      <HomeInner />
+    </LangContext.Provider>
   )
 }
