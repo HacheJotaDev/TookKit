@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { IptvChecker } from '@/components/iptv/iptv-checker'
+import { BinSearcher } from '@/components/bin-searcher/bin-searcher'
 import { apiFetch } from '@/lib/api-config'
 import { IBAN_COUNTRIES, generateIban, formatIban, type IbanCountry } from '@/lib/iban-data'
 
@@ -67,6 +68,7 @@ const T: Record<Lang, Record<string, string>> = {
     'tool.email': 'Correo', 'tool.email_desc': 'Generador',
     'tool.address': 'Direcciones', 'tool.address_desc': 'Generador',
     'tool.iban': 'IBAN', 'tool.iban_desc': 'Generador',
+    'tool.binsearch': 'BIN Lookup', 'tool.binsearch_desc': 'Buscador',
     'set.about_desc': 'HJTools X — Generador de Tarjetas, CCS Checker, IPTV Checker, Generador de Correo, Direcciones e IBAN.',
   },
   en: {
@@ -114,6 +116,7 @@ const T: Record<Lang, Record<string, string>> = {
     'tool.email': 'Email', 'tool.email_desc': 'Generator',
     'tool.address': 'Addresses', 'tool.address_desc': 'Generator',
     'tool.iban': 'IBAN', 'tool.iban_desc': 'Generator',
+    'tool.binsearch': 'BIN Lookup', 'tool.binsearch_desc': 'Search',
     'set.about_desc': 'HJTools X — Card Generator, CCS Checker, IPTV Checker, Email Generator, Addresses & IBAN.',
   },
   pt: {
@@ -161,6 +164,7 @@ const T: Record<Lang, Record<string, string>> = {
     'tool.email': 'Email', 'tool.email_desc': 'Gerador',
     'tool.address': 'Endereços', 'tool.address_desc': 'Gerador',
     'tool.iban': 'IBAN', 'tool.iban_desc': 'Gerador',
+    'tool.binsearch': 'BIN Lookup', 'tool.binsearch_desc': 'Pesquisa',
     'set.about_desc': 'HJTools X — Gerador de Cartões, CCS Checker, IPTV Checker, Gerador de Email, Endereços e IBAN.',
   },
 }
@@ -183,7 +187,7 @@ const binCache = new Map<string, { country_name: string }>()
 // ============================================================
 
 type TabId = 'cards' | 'checker' | 'tools' | 'settings'
-type ToolId = 'iptv' | 'email' | 'address' | 'iban'
+type ToolId = 'iptv' | 'email' | 'address' | 'iban' | 'binsearch'
 
 interface GeneratedCard {
   number: string
@@ -370,6 +374,7 @@ const toolCards: { id: ToolId; labelKey: string; descKey: string; icon: typeof C
   { id: 'email', labelKey: 'tool.email', descKey: 'tool.email_desc', icon: Mail, color: 'text-amber-400', bg: 'bg-amber-500/10' },
   { id: 'address', labelKey: 'tool.address', descKey: 'tool.address_desc', icon: MapPin, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
   { id: 'iban', labelKey: 'tool.iban', descKey: 'tool.iban_desc', icon: Landmark, color: 'text-purple-400', bg: 'bg-purple-500/10' },
+  { id: 'binsearch', labelKey: 'tool.binsearch', descKey: 'tool.binsearch_desc', icon: CreditCard, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
 ]
 
 // ============================================================
@@ -480,6 +485,7 @@ function HomeInner() {
                 {activeTool === 'email' && <EmailTab />}
                 {activeTool === 'address' && <AddressTab />}
                 {activeTool === 'iban' && <IbanTab />}
+                {activeTool === 'binsearch' && <BinSearchTab />}
               </motion.div>
             </AnimatePresence>
           )}
@@ -1767,6 +1773,18 @@ function IbanTab() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// ============================================================
+// TOOL 5: BIN SEARCHER
+// ============================================================
+
+function BinSearchTab() {
+  return (
+    <div className="relative">
+      <BinSearcher />
     </div>
   )
 }
