@@ -5,20 +5,13 @@
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build",
-    "build:apk": "mv src/app/api src/app/_api && NEXT_PUBLIC_API_URL=https://hjtools-x.vercel.app next build; mv src/app/_api src/app/api",
     "start": "next start",
     "lint": "eslint .",
     "postinstall": "prisma generate",
     "db:push": "prisma db push",
-    "db:migrate": "prisma migrate deploy",
-    "cap:sync": "npx cap sync android",
-    "cap:build": "npm run build:apk && npx cap sync android"
+    "db:migrate": "prisma migrate deploy"
   },
   "dependencies": {
-    "@capacitor/android": "^6.2.1",
-    "@capacitor/cli": "^6.2.1",
-    "@capacitor/core": "^6.2.1",
-    "@capacitor/splash-screen": "^6.0.4",
     "@prisma/client": "^6.19.3",
     "framer-motion": "^12.23.2",
     "lucide-react": "^0.525.0",

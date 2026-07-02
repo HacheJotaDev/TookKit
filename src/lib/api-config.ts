@@ -1,17 +1,16 @@
 /**
- * API Base URL configuration for the HJTools X app.
+ * API configuration for HJTools X.
  *
- * - In the APK (Capacitor), all API calls go to the deployed Vercel backend.
  * - In development (localhost), API calls go to the local Next.js server.
- * - The Vercel deployment URL is baked into the APK at build time.
+ * - NEXT_PUBLIC_API_URL can override the base URL if needed.
  */
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 /**
  * Resolves an API path to a full URL.
- * - If API_BASE_URL is set (APK mode), prepends the Vercel URL.
- * - If empty (dev mode), returns the path as-is (relative to current origin).
+ * - If API_BASE_URL is set, prepends it.
+ * - If empty (dev/default), returns the path as-is (relative to current origin).
  */
 export function apiUrl(path: string): string {
   if (!path.startsWith('/')) return path;
@@ -22,8 +21,7 @@ export function apiUrl(path: string): string {
 }
 
 /**
- * Get session ID from localStorage (for APK mode where middleware doesn't run).
- * In dev mode, the middleware handles sessions via cookies.
+ * Get or create session ID from localStorage.
  */
 export function getSessionId(): string {
   if (typeof window === 'undefined') return '';
@@ -36,7 +34,7 @@ export function getSessionId(): string {
 }
 
 /**
- * Enhanced fetch that adds session header for APK mode.
+ * Enhanced fetch that adds session header.
  */
 export async function apiFetch(input: string, init?: RequestInit): Promise<Response> {
   const url = apiUrl(input);
