@@ -4,7 +4,8 @@ import { NextRequest, NextResponse } from 'next/server'
 const cache = new Map<string, { data: Record<string, unknown>; timestamp: number }>()
 const CACHE_TTL = 30 * 60 * 1000
 
-const IPGEO_API_KEY = '607609183b2b45ad833096cb7bc40438'
+const SCAMALYTICS_USER = '6a4726284d0d8'
+const SCAMALYTICS_KEY = 'caf46c54b92a99f5e1da8daaf2e9a5f3c7a665c0f35184474ee698140b9263de'
 
 function getCached(ip: string): Record<string, unknown> | null {
   const entry = cache.get(ip)
@@ -22,62 +23,95 @@ function setCache(ip: string, data: Record<string, unknown>) {
 }
 
 // ============================================================
-// SOURCE 1: ipgeolocation.io — Geolocation
+// Scamalytics API v3 — Single source for all fraud data
 // ============================================================
 
-async function fetchIpGeo(ip: string): Promise<Record<string, unknown> | null> {
-  try {
-    const res = await fetch(
-      `https://api.ipgeolocation.io/ipgeo?apiKey=${IPGEO_API_KEY}&ip=${ip}`,
-      { signal: AbortSignal.timeout(8000) }
-    )
-    if (!res.ok) return null
-    const json = await res.json() as Record<string, unknown>
-    if (!json.ip) return null
-    return json
-  } catch {
-    return null
-  }
+interface ScamalyticsProxy {
+  is_datacenter: boolean
+  is_vpn: boolean
+  is_apple_icloud_private_relay: boolean
+  is_amazon_aws: boolean
+  is_google: boolean
 }
 
-// ============================================================
-// SOURCE 2: ipgeolocation.io — IP Security API
-// ============================================================
-
-interface SecurityResponse {
+interface ScamalyticsCore {
+  status: string
+  mode: string
   ip: string
-  security: {
-    threat_score: number
-    is_tor: boolean
-    is_proxy: boolean
-    proxy_provider_names: string[]
-    proxy_confidence_score: number
-    proxy_last_seen: string
-    is_residential_proxy: boolean
-    is_vpn: boolean
-    vpn_provider_names: string[]
-    vpn_confidence_score: number
-    vpn_last_seen: string
-    is_relay: boolean
-    relay_provider_name: string
-    is_anonymous: boolean
-    is_known_attacker: boolean
-    is_bot: boolean
-    is_spam: boolean
-    is_cloud_provider: boolean
-    cloud_provider_name: string
+  scamalytics_score: number
+  scamalytics_risk: string
+  scamalytics_url: string
+  scamalytics_isp: string
+  scamalytics_org: string
+  scamalytics_isp_score: number
+  scamalytics_isp_risk: string
+  scamalytics_proxy: ScamalyticsProxy
+  is_blacklisted_external: boolean
+}
+
+interface DbIpData {
+  ip_country_code: string
+  ip_state_name: string
+  ip_district_name: string
+  ip_city: string
+  ip_postcode: string
+  ip_geolocation: string
+  ip_country_name: string
+  isp_name: string
+  org_name: string
+  connection_type: string | null
+}
+
+interface X4bNetData {
+  is_vpn: boolean
+  is_datacenter: boolean
+  is_tor: boolean
+  is_blacklisted_spambot: boolean
+  is_bot_operamini: boolean
+  is_bot_semrush: boolean
+}
+
+interface FireholData {
+  ip_blacklisted_30: boolean
+  ip_blacklisted_1day: boolean
+  is_proxy: boolean
+}
+
+interface GoogleData {
+  is_google_general: boolean
+  is_googlebot: boolean
+  is_special_crawler: boolean
+  is_user_triggered_fetcher: boolean
+  is_google_cloud: boolean
+}
+
+interface ScamalyticsResponse {
+  scamalytics: ScamalyticsCore
+  external_datasources: {
+    dbip: DbIpData
+    x4bnet: X4bNetData
+    firehol: FireholData
+    google: GoogleData
+    spamhaus_drop: { ip_blacklisted: boolean }
+    ipsum: { ip_blacklisted: boolean; num_blacklists: number }
+    [key: string]: unknown
   }
 }
 
-async function fetchIpSecurity(ip: string): Promise<SecurityResponse | null> {
+async function fetchScamalytics(ip: string): Promise<ScamalyticsResponse | null> {
   try {
     const res = await fetch(
-      `https://api.ipgeolocation.io/v3/security?apiKey=${IPGEO_API_KEY}&ip=${ip}`,
-      { signal: AbortSignal.timeout(8000) }
+      `https://api11.scamalytics.com/v3/${SCAMALYTICS_USER}/?key=${SCAMALYTICS_KEY}&ip=${ip}`,
+      {
+        signal: AbortSignal.timeout(10000),
+        headers: {
+          'Accept': 'application/json',
+        },
+      }
     )
     if (!res.ok) return null
-    const json = await res.json() as SecurityResponse
-    if (!json.security) return null
+    const json = await res.json() as ScamalyticsResponse
+    if (!json.scamalytics || json.scamalytics.status !== 'ok') return null
     return json
   } catch {
     return null
@@ -103,54 +137,66 @@ export async function GET(req: NextRequest) {
       })
     }
 
-    // Fetch both ipgeolocation APIs in parallel
-    const [geo, sec] = await Promise.all([fetchIpGeo(ip), fetchIpSecurity(ip)])
+    // Fetch Scamalytics (single source for all data)
+    const scam = await fetchScamalytics(ip)
 
-    if (!geo && !sec) {
+    if (!scam) {
       return NextResponse.json({ error: 'No se pudo obtener datos de esta IP' }, { status: 502 })
     }
 
-    // Security data from ipgeolocation Security API
-    const s = sec?.security
-    const threatScore = s?.threat_score ?? 0
-    const risk = threatScore >= 50 ? 'high' : threatScore >= 25 ? 'medium' : 'low'
+    const core = scam.scamalytics
+    const ext = scam.external_datasources
 
-    // Location from geolocation API
-    const location = {
-      countryName: (geo?.country_name as string) || '',
-      countryCode: (geo?.country_code2 as string) || '',
-      state: (geo?.state_prov as string) || '',
-      district: (geo?.district as string) || '',
-      city: (geo?.city as string) || '',
-      postalCode: (geo?.zipcode as string) || '',
-    }
+    // Score and Risk
+    const score = core.scamalytics_score
+    const risk = core.scamalytics_risk === 'high' ? 'high'
+      : core.scamalytics_risk === 'medium' ? 'medium' : 'low'
 
-    // Operator from geolocation API
+    // Operator — prefer scamalytics core ISP/Org
     const operator = {
-      ispName: (geo?.isp as string) || '',
-      orgName: (geo?.organization as string) || '',
-      connectionType: (geo?.connection_type as string) || '',
+      ispName: core.scamalytics_isp || ext.dbip?.isp_name || '',
+      orgName: core.scamalytics_org || ext.dbip?.org_name || '',
+      connectionType: ext.dbip?.connection_type || '',
     }
 
-    // Security checks from Security API
+    // Location from dbip (most detailed geolocation in Scamalytics response)
+    const location = {
+      countryName: ext.dbip?.ip_country_name || '',
+      countryCode: ext.dbip?.ip_country_code || '',
+      state: ext.dbip?.ip_state_name || '',
+      district: ext.dbip?.ip_district_name || '',
+      city: ext.dbip?.ip_city || '',
+      postalCode: ext.dbip?.ip_postcode || '',
+    }
+
+    // Proxy & VPN checks — aggregated from multiple external sources
+    const isVpn = core.scamalytics_proxy?.is_vpn || ext.x4bnet?.is_vpn || false
+    const isTor = ext.x4bnet?.is_tor || false
+    const isDatacenter = core.scamalytics_proxy?.is_datacenter || ext.x4bnet?.is_datacenter || false
+    const isPublicProxy = ext.firehol?.is_proxy || false
+    const isBot = ext.google?.is_googlebot || ext.x4bnet?.is_bot_semrush || false
+    const isBlacklisted = core.is_blacklisted_external
+      || ext.firehol?.ip_blacklisted_30
+      || ext.spamhaus_drop?.ip_blacklisted
+      || ext.ipsum?.ip_blacklisted
+      || false
+
     const proxies: Record<string, string> = {
-      anonymizing_vpn: s?.is_vpn ? 'Yes' : 'No',
-      tor_exit_node: s?.is_tor ? 'Yes' : 'No',
-      server: s?.is_cloud_provider ? 'Yes' : 'No',
-      public_proxy: s?.is_proxy ? 'Yes' : 'No',
-      web_proxy: s?.is_relay ? 'Yes' : 'No',
-      search_engine_robot: s?.is_bot ? 'Yes' : 'No',
+      anonymizing_vpn: isVpn ? 'Yes' : 'No',
+      tor_exit_node: isTor ? 'Yes' : 'No',
+      server: isDatacenter ? 'Yes' : 'No',
+      public_proxy: isPublicProxy ? 'Yes' : 'No',
+      search_engine_robot: isBot ? 'Yes' : 'No',
+      blacklisted: isBlacklisted ? 'Yes' : 'No',
     }
 
     const data = {
       ip,
-      score: threatScore,
+      score,
       risk,
       operator,
       location,
-      datacenter: s?.is_cloud_provider ? 'Yes' : 'No',
       proxies,
-      residentialProxy: s?.is_residential_proxy ? 'Yes' : 'No',
     }
 
     setCache(ip, data)

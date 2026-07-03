@@ -25,20 +25,12 @@ interface IpFraudData {
   location: {
     countryName?: string
     countryCode?: string
-    countryFlag?: string
-    countryEmoji?: string
     state?: string
     district?: string
     city?: string
     postalCode?: string
-    latitude?: string
-    longitude?: string
-    timezone?: string
-    currency?: string
   }
-  datacenter: string
   proxies: Record<string, string>
-  residentialProxy: string
 }
 
 // ============================================================
@@ -72,27 +64,24 @@ const PROXY_LABELS: Record<string, Record<string, string>> = {
     tor_exit_node: 'Nodo de Salida Tor',
     server: 'Servidor',
     public_proxy: 'Proxy Público',
-    web_proxy: 'Proxy Web',
     search_engine_robot: 'Robot de Motor de Búsqueda',
-    residential_proxy: 'Proxy Residencial',
+    blacklisted: 'En Lista Negra',
   },
   en: {
     anonymizing_vpn: 'Anonymizing VPN',
     tor_exit_node: 'Tor Exit Node',
     server: 'Server',
     public_proxy: 'Public Proxy',
-    web_proxy: 'Web Proxy',
     search_engine_robot: 'Search Engine Robot',
-    residential_proxy: 'Residential Proxy',
+    blacklisted: 'Blacklisted',
   },
   pt: {
     anonymizing_vpn: 'VPN Anonimizada',
     tor_exit_node: 'Nó de Saída Tor',
     server: 'Servidor',
     public_proxy: 'Proxy Público',
-    web_proxy: 'Proxy Web',
     search_engine_robot: 'Robô de Mecanismo de Busca',
-    residential_proxy: 'Proxy Residencial',
+    blacklisted: 'Na Lista Negra',
   },
 }
 
@@ -103,9 +92,9 @@ const OPERATOR_LABELS: Record<string, Record<string, string>> = {
 }
 
 const LOCATION_LABELS: Record<string, Record<string, string>> = {
-  es: { countryName: 'País', state: 'Estado / Provincia', district: 'Distrito', city: 'Ciudad', postalCode: 'Código Postal', timezone: 'Zona Horaria', currency: 'Moneda' },
-  en: { countryName: 'Country', state: 'State / Province', district: 'District', city: 'City', postalCode: 'Postal Code', timezone: 'Timezone', currency: 'Currency' },
-  pt: { countryName: 'País', state: 'Estado / Província', district: 'Distrito', city: 'Cidade', postalCode: 'Código Postal', timezone: 'Fuso Horário', currency: 'Moeda' },
+  es: { countryName: 'País', state: 'Estado / Provincia', district: 'Distrito', city: 'Ciudad', postalCode: 'Código Postal' },
+  en: { countryName: 'Country', state: 'State / Province', district: 'District', city: 'City', postalCode: 'Postal Code' },
+  pt: { countryName: 'País', state: 'Estado / Província', district: 'Distrito', city: 'Cidade', postalCode: 'Código Postal' },
 }
 
 const UI_TEXT = {
@@ -122,7 +111,6 @@ const UI_TEXT = {
     operator: 'Operador',
     location: 'Ubicación',
     proxies: 'Proxies & VPN',
-    datacenter: 'Datacenter',
     no: 'No',
     yes: 'Sí',
     unknown: 'Desconocido',
@@ -141,8 +129,6 @@ const UI_TEXT = {
     operator: 'Operator',
     location: 'Location',
     proxies: 'Proxies & VPN',
-    datacenter: 'Datacenter',
-    description: 'Description',
     no: 'No',
     yes: 'Yes',
     unknown: 'Unknown',
@@ -161,8 +147,6 @@ const UI_TEXT = {
     operator: 'Operador',
     location: 'Localização',
     proxies: 'Proxies & VPN',
-    datacenter: 'Datacenter',
-    description: 'Descrição',
     no: 'Não',
     yes: 'Sim',
     unknown: 'Desconhecido',
@@ -522,12 +506,6 @@ export function IpFraudChecker() {
                   value={value}
                 />
               ))}
-              {data.residentialProxy && (
-                <CheckRow
-                  label={PROXY_LABELS[lang].residential_proxy}
-                  value={data.residentialProxy}
-                />
-              )}
             </SectionCard>
 
 
