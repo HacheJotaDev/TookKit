@@ -71,6 +71,15 @@ const T: Record<Lang, Record<string, string>> = {
     // ADDRESS TAB
     // ============================================================
     'addr.pais': 'País', 'addr.cantidad': 'Cantidad', 'addr.generar': 'Generar Direcciones', 'addr.generando': 'Generando...',
+    // Address country names
+    'addr.c_us': 'Estados Unidos', 'addr.c_gb': 'Reino Unido', 'addr.c_es': 'España', 'addr.c_mx': 'México',
+    'addr.c_br': 'Brasil', 'addr.c_fr': 'Francia', 'addr.c_de': 'Alemania', 'addr.c_it': 'Italia',
+    'addr.c_ca': 'Canadá', 'addr.c_au': 'Australia', 'addr.c_in': 'India', 'addr.c_nl': 'Países Bajos',
+    'addr.c_ch': 'Suiza', 'addr.c_ie': 'Irlanda', 'addr.c_dk': 'Dinamarca', 'addr.c_fi': 'Finlandia',
+    'addr.c_no': 'Noruega', 'addr.c_nz': 'Nueva Zelanda', 'addr.c_tr': 'Turquía', 'addr.c_ir': 'Irán', 'addr.c_rs': 'Serbia',
+    // Share
+    'set.share_text': 'Descarga HJTools X - La toolkit todo en uno',
+    'set.share_whatsapp_desc': 'Compartir por WhatsApp', 'set.share_telegram_desc': 'Compartir por Telegram',
     'addr.copiar_todo': 'Copiar Todo', 'addr.copiada': 'Dirección copiada', 'addr.copiadas': 'direcciones copiadas',
     'addr.resultado': 'resultado', 'addr.error_gen': 'Error al generar direcciones. Intenta de nuevo.',
     'addr.error_net': 'Error de conexión. Verifica tu internet.', 'addr.cp': 'CP', 'addr.tel': 'Tel',
@@ -214,6 +223,15 @@ const T: Record<Lang, Record<string, string>> = {
     'email.error_cargar': 'Error loading message',
 
     'addr.pais': 'Country', 'addr.cantidad': 'Quantity', 'addr.generar': 'Generate Addresses', 'addr.generando': 'Generating...',
+    // Address country names
+    'addr.c_us': 'United States', 'addr.c_gb': 'United Kingdom', 'addr.c_es': 'Spain', 'addr.c_mx': 'Mexico',
+    'addr.c_br': 'Brazil', 'addr.c_fr': 'France', 'addr.c_de': 'Germany', 'addr.c_it': 'Italy',
+    'addr.c_ca': 'Canada', 'addr.c_au': 'Australia', 'addr.c_in': 'India', 'addr.c_nl': 'Netherlands',
+    'addr.c_ch': 'Switzerland', 'addr.c_ie': 'Ireland', 'addr.c_dk': 'Denmark', 'addr.c_fi': 'Finland',
+    'addr.c_no': 'Norway', 'addr.c_nz': 'New Zealand', 'addr.c_tr': 'Turkey', 'addr.c_ir': 'Iran', 'addr.c_rs': 'Serbia',
+    // Share
+    'set.share_text': 'Download HJTools X - The all-in-one toolkit',
+    'set.share_whatsapp_desc': 'Share via WhatsApp', 'set.share_telegram_desc': 'Share via Telegram',
     'addr.copiar_todo': 'Copy All', 'addr.copiada': 'Address copied', 'addr.copiadas': 'addresses copied',
     'addr.resultado': 'result', 'addr.error_gen': 'Error generating addresses. Try again.',
     'addr.error_net': 'Connection error. Check your internet.', 'addr.cp': 'ZIP', 'addr.tel': 'Tel',
@@ -338,6 +356,15 @@ const T: Record<Lang, Record<string, string>> = {
     'email.error_cargar': 'Erro ao carregar mensagem',
 
     'addr.pais': 'País', 'addr.cantidad': 'Quantidade', 'addr.generar': 'Gerar Endereços', 'addr.generando': 'Gerando...',
+    // Address country names
+    'addr.c_us': 'Estados Unidos', 'addr.c_gb': 'Reino Unido', 'addr.c_es': 'Espanha', 'addr.c_mx': 'México',
+    'addr.c_br': 'Brasil', 'addr.c_fr': 'França', 'addr.c_de': 'Alemanha', 'addr.c_it': 'Itália',
+    'addr.c_ca': 'Canadá', 'addr.c_au': 'Austrália', 'addr.c_in': 'Índia', 'addr.c_nl': 'Países Baixos',
+    'addr.c_ch': 'Suíça', 'addr.c_ie': 'Irlanda', 'addr.c_dk': 'Dinamarca', 'addr.c_fi': 'Finlândia',
+    'addr.c_no': 'Noruega', 'addr.c_nz': 'Nova Zelândia', 'addr.c_tr': 'Turquia', 'addr.c_ir': 'Irã', 'addr.c_rs': 'Sérvia',
+    // Share
+    'set.share_text': 'Baixe HJTools X - A toolkit tudo em um',
+    'set.share_whatsapp_desc': 'Compartilhar por WhatsApp', 'set.share_telegram_desc': 'Compartilhar por Telegram',
     'addr.copiar_todo': 'Copiar Tudo', 'addr.copiada': 'Endereço copiado', 'addr.copiadas': 'endereços copiados',
     'addr.resultado': 'resultado', 'addr.error_gen': 'Erro ao gerar endereços. Tente novamente.',
     'addr.error_net': 'Erro de conexão. Verifique sua internet.', 'addr.cp': 'CEP', 'addr.tel': 'Tel',

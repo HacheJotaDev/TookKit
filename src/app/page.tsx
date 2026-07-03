@@ -19,7 +19,7 @@ import { IBAN_COUNTRIES, generateIban, formatIban, type IbanCountry } from '@/li
 // I18N SYSTEM
 // ============================================================
 
-import { Lang, LangContext, useT, T, LANG_LABELS } from '@/lib/i18n'
+import { Lang, LangContext, useT, T, LANG_LABELS, LOCALE_MAP } from '@/lib/i18n'
 
 
 
@@ -834,7 +834,7 @@ function IptvTab() {
 // ============================================================
 
 function EmailTab() {
-  const { t: tt } = useT()
+  const { t: tt, lang: emailLang } = useT()
   const [account, setAccount] = useState<EmailAccount | null>(null)
   const [messages, setMessages] = useState<EmailMessage[]>([])
   const [selectedMsg, setSelectedMsg] = useState<{ id: string; from: string; subject: string; body: string } | null>(null)
@@ -1270,7 +1270,7 @@ function EmailTab() {
                       {msg.intro && <p className="text-xs truncate pl-8 mt-0.5" style={{ color: 'var(--app-text-dim)' }}>{msg.intro}</p>}
                     </div>
                     <span className="text-[10px] shrink-0 mt-0.5" style={{ color: 'var(--app-text-faint)' }}>
-                      {new Date(msg.createdAt).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}
+                      {new Date(msg.createdAt).toLocaleTimeString(LOCALE_MAP[emailLang] || 'es-CL', { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
                 </motion.button>
@@ -1293,29 +1293,12 @@ function EmailTab() {
 // TAB 5: ADDRESS GENERATOR — Direct API (bypasses proxy)
 // ============================================================
 
-const ADDRESS_COUNTRIES = [
-  { code: 'US', label: 'Estados Unidos', flag: '🇺🇸' },
-  { code: 'GB', label: 'Reino Unido', flag: '🇬🇧' },
-  { code: 'ES', label: 'España', flag: '🇪🇸' },
-  { code: 'MX', label: 'México', flag: '🇲🇽' },
-  { code: 'BR', label: 'Brasil', flag: '🇧🇷' },
-  { code: 'FR', label: 'Francia', flag: '🇫🇷' },
-  { code: 'DE', label: 'Alemania', flag: '🇩🇪' },
-  { code: 'IT', label: 'Italia', flag: '🇮🇹' },
-  { code: 'CA', label: 'Canadá', flag: '🇨🇦' },
-  { code: 'AU', label: 'Australia', flag: '🇦🇺' },
-  { code: 'IN', label: 'India', flag: '🇮🇳' },
-  { code: 'NL', label: 'Países Bajos', flag: '🇳🇱' },
-  { code: 'CH', label: 'Suiza', flag: '🇨🇭' },
-  { code: 'IE', label: 'Irlanda', flag: '🇮🇪' },
-  { code: 'DK', label: 'Dinamarca', flag: '🇩🇰' },
-  { code: 'FI', label: 'Finlandia', flag: '🇫🇮' },
-  { code: 'NO', label: 'Noruega', flag: '🇳🇴' },
-  { code: 'NZ', label: 'Nueva Zelanda', flag: '🇳🇿' },
-  { code: 'TR', label: 'Turquía', flag: '🇹🇷' },
-  { code: 'IR', label: 'Irán', flag: '🇮🇷' },
-  { code: 'RS', label: 'Serbia', flag: '🇷🇸' },
-] as const
+const ADDRESS_COUNTRY_CODES = ['US', 'GB', 'ES', 'MX', 'BR', 'FR', 'DE', 'IT', 'CA', 'AU', 'IN', 'NL', 'CH', 'IE', 'DK', 'FI', 'NO', 'NZ', 'TR', 'IR', 'RS'] as const
+const ADDRESS_FLAGS: Record<string, string> = {
+  US: '🇺🇸', GB: '🇬🇧', ES: '🇪🇸', MX: '🇲🇽', BR: '🇧🇷', FR: '🇫🇷', DE: '🇩🇪', IT: '🇮🇹',
+  CA: '🇨🇦', AU: '🇦🇺', IN: '🇮🇳', NL: '🇳🇱', CH: '🇨🇭', IE: '🇮🇪', DK: '🇩🇰', FI: '🇫🇮',
+  NO: '🇳🇴', NZ: '🇳🇿', TR: '🇹🇷', IR: '🇮🇷', RS: '🇷🇸',
+}
 
 // All nat codes are directly from randomuser.me official documentation
 // https://randomuser.me/documentation#nat
@@ -1407,8 +1390,8 @@ function AddressTab() {
           onChange={(e) => setSelectedCountry(e.target.value)}
           className="w-full bg-[#09090b] theme-input border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white theme-text focus:outline-none focus:border-amber-500/50 transition-colors"
         >
-          {ADDRESS_COUNTRIES.map(c => (
-            <option key={c.code} value={c.code}>{c.flag} {c.label}</option>
+          {ADDRESS_COUNTRY_CODES.map(code => (
+            <option key={code} value={code}>{ADDRESS_FLAGS[code]} {t(`addr.c_${code.toLowerCase()}`)}</option>
           ))}
         </select>
 
@@ -1530,7 +1513,7 @@ function IbanTab() {
       generated.push({ iban: generateIban(country), country })
     }
     setIbans(generated)
-    toast.success(`${qty} IBAN${qty > 1 ? 's' : ''} generado${qty > 1 ? 's' : ''}`)
+    toast.success(`${qty} ${t('iban.generados')}`)
   }, [selectedCountry, quantity])
 
   
@@ -1555,7 +1538,7 @@ function IbanTab() {
     <div className="space-y-4">
       {/* Country & Quantity Selector */}
       <div className="bg-[#111113] theme-card rounded-xl border border-white/[0.06] p-4 space-y-3">
-        <label className="text-xs font-medium text-white/50 theme-text-dim uppercase tracking-wider">País</label>
+        <label className="text-xs font-medium text-white/50 theme-text-dim uppercase tracking-wider">{t('iban.pais')}</label>
         <select
           value={selectedCountry}
           onChange={(e) => setSelectedCountry(e.target.value)}
@@ -1624,14 +1607,14 @@ function IbanTab() {
                           {item.country.label}
                         </span>
                         <span className="text-[10px] font-mono text-amber-500/50 bg-amber-500/10 px-1.5 py-0.5 rounded-md">
-                          {item.iban.length} chars
+                          {item.iban.length} {t('iban.caracteres')}
                         </span>
                       </div>
                       <p className="text-sm font-mono leading-snug tracking-wide" style={{ color: 'var(--app-text-90)' }}>
                         {formatIban(item.iban)}
                       </p>
                       <div className="flex gap-3 text-xs font-mono" style={{ color: 'var(--app-text-dim)' }}>
-                        <span>Código: <span className="text-amber-500/70">{item.iban.slice(0, 2)}</span></span>
+                        <span>{t('iban.codigo')}: <span className="text-amber-500/70">{item.iban.slice(0, 2)}</span></span>
                         <span>Check: <span className="text-amber-500/70">{item.iban.slice(2, 4)}</span></span>
                       </div>
                     </div>
@@ -1701,7 +1684,7 @@ function SettingsTab() {
   const wakeLockRef = useRef<WakeLockSentinel | null>(null)
 
   const APK_URL = 'https://www.mediafire.com/file/2gsvk7962tqqonv/HJTools_X.apk/file'
-  const SHARE_TEXT = 'Descarga HJTools X - La toolkit todo en uno'
+  const SHARE_TEXT = t('set.share_text')
   const SHARE_FULL = `${SHARE_TEXT}\n${APK_URL}`
 
   // Calculate storage on mount
@@ -1991,7 +1974,7 @@ function SettingsTab() {
                   </div>
                   <div className="text-left flex-1">
                     <p className="text-[13px] font-semibold text-[#25D366]">WhatsApp</p>
-                    <p className="text-[11px] text-white/40">Compartir por WhatsApp</p>
+                    <p className="text-[11px] text-white/40">{t('set.share_whatsapp_desc')}</p>
                   </div>
                   <ExternalLink className="w-4 h-4 text-white/20" />
                 </button>
@@ -2001,7 +1984,7 @@ function SettingsTab() {
                   </div>
                   <div className="text-left flex-1">
                     <p className="text-[13px] font-semibold text-[#26A5E4]">Telegram</p>
-                    <p className="text-[11px] text-white/40">Compartir por Telegram</p>
+                    <p className="text-[11px] text-white/40">{t('set.share_telegram_desc')}</p>
                   </div>
                   <ExternalLink className="w-4 h-4 text-white/20" />
                 </button>

@@ -121,7 +121,7 @@ function CheckRow({ label, value, detectedLabel, noLabel }: { label: string; val
   )
 }
 
-function InfoRow({ label, value, icon }: { label: string; value: string; icon?: React.ReactNode }) {
+function InfoRow({ label, value, icon }: { label: string; value: string | undefined; icon?: React.ReactNode }) {
   if (!value) return null
   return (
     <div className="flex items-start gap-3 py-2">

@@ -313,9 +313,9 @@ function computeFrenchRIB(bank: string, branch: string, account: string): string
   const branchNum = BigInt(parseInt(branch))
   // Account is numeric in our case (11 digits), no letter conversion needed
   const accountNum = BigInt(account)
-  const weightedSum = bankNum * 89n + branchNum * 15n + accountNum * 3n
-  const remainder = weightedSum % 97n
-  const ribKey = (97n - remainder) % 97n
+  const weightedSum = bankNum * BigInt(89) + branchNum * BigInt(15) + accountNum * BigInt(3)
+  const remainder = weightedSum % BigInt(97)
+  const ribKey = (BigInt(97) - remainder) % BigInt(97)
   return ribKey.toString().padStart(2, '0')
 }
 
@@ -395,7 +395,7 @@ function calculateIbanCheckDigits(countryCode: string, bban: string): string {
     if (code >= 65 && code <= 90) return String(code - 55) // A=10
     return ch
   }).join('')
-  const remainder = BigInt(numeric) % 97n
+  const remainder = BigInt(numeric) % BigInt(97)
   const check = 98 - Number(remainder)
   return String(check).padStart(2, '0')
 }
