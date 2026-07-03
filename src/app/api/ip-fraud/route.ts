@@ -22,7 +22,7 @@ function setCache(ip: string, data: Record<string, unknown>) {
 }
 
 // ============================================================
-// SOURCE 1: ipgeolocation.io — Geolocation (rich data, API key)
+// SOURCE 1: ipgeolocation.io — Geolocation
 // ============================================================
 
 async function fetchIpGeo(ip: string): Promise<Record<string, unknown> | null> {
@@ -41,18 +41,43 @@ async function fetchIpGeo(ip: string): Promise<Record<string, unknown> | null> {
 }
 
 // ============================================================
-// SOURCE 2: ip-api.com — Security (proxy/VPN/hosting detection)
+// SOURCE 2: ipgeolocation.io — IP Security API
 // ============================================================
 
-async function fetchIpSecurity(ip: string): Promise<Record<string, unknown> | null> {
+interface SecurityResponse {
+  ip: string
+  security: {
+    threat_score: number
+    is_tor: boolean
+    is_proxy: boolean
+    proxy_provider_names: string[]
+    proxy_confidence_score: number
+    proxy_last_seen: string
+    is_residential_proxy: boolean
+    is_vpn: boolean
+    vpn_provider_names: string[]
+    vpn_confidence_score: number
+    vpn_last_seen: string
+    is_relay: boolean
+    relay_provider_name: string
+    is_anonymous: boolean
+    is_known_attacker: boolean
+    is_bot: boolean
+    is_spam: boolean
+    is_cloud_provider: boolean
+    cloud_provider_name: string
+  }
+}
+
+async function fetchIpSecurity(ip: string): Promise<SecurityResponse | null> {
   try {
     const res = await fetch(
-      `http://ip-api.com/json/${ip}?fields=status,message,proxy,hosting,query`,
+      `https://api.ipgeolocation.io/v3/security?apiKey=${IPGEO_API_KEY}&ip=${ip}`,
       { signal: AbortSignal.timeout(8000) }
     )
     if (!res.ok) return null
-    const json = await res.json() as Record<string, unknown>
-    if (json.status !== 'success') return null
+    const json = await res.json() as SecurityResponse
+    if (!json.security) return null
     return json
   } catch {
     return null
@@ -78,52 +103,43 @@ export async function GET(req: NextRequest) {
       })
     }
 
-    // Fetch both sources in parallel
-    const [geo, security] = await Promise.all([fetchIpGeo(ip), fetchIpSecurity(ip)])
+    // Fetch both ipgeolocation APIs in parallel
+    const [geo, sec] = await Promise.all([fetchIpGeo(ip), fetchIpSecurity(ip)])
 
-    if (!geo && !security) {
+    if (!geo && !sec) {
       return NextResponse.json({ error: 'No se pudo obtener datos de esta IP' }, { status: 502 })
     }
 
-    // Compute threat score from security data
-    const isProxy = (security?.proxy as boolean) || false
-    const isHosting = (security?.hosting as boolean) || false
-    const threatScore = Math.min(100, (isProxy ? 75 : 0) + (isHosting ? 50 : 0))
-
+    // Security data from ipgeolocation Security API
+    const s = sec?.security
+    const threatScore = s?.threat_score ?? 0
     const risk = threatScore >= 50 ? 'high' : threatScore >= 25 ? 'medium' : 'low'
 
-    // Build location from geo data
+    // Location from geolocation API
     const location = {
       countryName: (geo?.country_name as string) || '',
       countryCode: (geo?.country_code2 as string) || '',
-      countryFlag: (geo?.country_flag as string) || '',
-      countryEmoji: (geo?.country_emoji as string) || '',
       state: (geo?.state_prov as string) || '',
       district: (geo?.district as string) || '',
       city: (geo?.city as string) || '',
       postalCode: (geo?.zipcode as string) || '',
-      latitude: (geo?.latitude as string) || '',
-      longitude: (geo?.longitude as string) || '',
-      timezone: ((geo?.time_zone as Record<string, unknown>)?.name as string) || '',
-      currency: ((geo?.currency as Record<string, unknown>)?.code as string) || '',
-      languages: (geo?.languages as string) || '',
     }
 
-    // Build operator from geo data
+    // Operator from geolocation API
     const operator = {
       ispName: (geo?.isp as string) || '',
       orgName: (geo?.organization as string) || '',
       connectionType: (geo?.connection_type as string) || '',
     }
 
-    // Build security checks
+    // Security checks from Security API
     const proxies: Record<string, string> = {
-      anonymizing_vpn: isProxy ? 'Yes' : 'No',
-      tor_exit_node: 'No',
-      server: isHosting ? 'Yes' : 'No',
-      public_proxy: isProxy ? 'Yes' : 'No',
-      web_proxy: 'No',
-      search_engine_robot: 'No',
+      anonymizing_vpn: s?.is_vpn ? 'Yes' : 'No',
+      tor_exit_node: s?.is_tor ? 'Yes' : 'No',
+      server: s?.is_cloud_provider ? 'Yes' : 'No',
+      public_proxy: s?.is_proxy ? 'Yes' : 'No',
+      web_proxy: s?.is_relay ? 'Yes' : 'No',
+      search_engine_robot: s?.is_bot ? 'Yes' : 'No',
     }
 
     const data = {
@@ -132,9 +148,9 @@ export async function GET(req: NextRequest) {
       risk,
       operator,
       location,
-      datacenter: isHosting ? 'Yes' : 'No',
+      datacenter: s?.is_cloud_provider ? 'Yes' : 'No',
       proxies,
-      residentialProxy: isProxy ? 'Yes' : 'No',
+      residentialProxy: s?.is_residential_proxy ? 'Yes' : 'No',
     }
 
     setCache(ip, data)
