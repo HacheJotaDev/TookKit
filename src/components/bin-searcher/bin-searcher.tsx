@@ -7,6 +7,7 @@ import {
   CreditCard, Building2, Globe, Filter, X, Landmark
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useT } from '@/lib/i18n'
 import { BIN_COUNTRIES, type BinCountry } from '@/lib/bin-country-data'
 
 interface BinEntry {
@@ -78,6 +79,7 @@ function setCache(key: string, data: Record<string, unknown>) {
 }
 
 export function BinSearcher() {
+  const { t } = useT()
   const [step, setStep] = useState<Step>('country')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCountry, setSelectedCountry] = useState<BinCountry | null>(null)
@@ -147,7 +149,7 @@ export function BinSearcher() {
       setStep('bank')
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === 'AbortError') return
-      toast.error('Error al cargar datos del país')
+      toast.error(t('bin.errorLoadCountry'))
     } finally {
       setLoading(false)
     }
@@ -190,7 +192,7 @@ export function BinSearcher() {
       setStep('bins')
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === 'AbortError') return
-      toast.error('Error al cargar datos del banco')
+      toast.error(t('bin.errorLoadBank'))
     } finally {
       setLoading(false)
     }
@@ -204,7 +206,7 @@ export function BinSearcher() {
   const copyBin = useCallback(async (bin: string) => {
     await navigator.clipboard.writeText(bin)
     setCopiedBin(bin)
-    toast.success('BIN copiado')
+    toast.success(t('bin.binCopied'))
     setTimeout(() => setCopiedBin(null), 1500)
   }, [])
 
@@ -230,7 +232,7 @@ export function BinSearcher() {
               }`}
               style={step !== s ? { color: 'var(--app-text-dim)' } : undefined}
             >
-              {s === 'country' ? 'País' : s === 'bank' ? 'Banco' : 'BINs'}
+              {s === 'country' ? t('bin.country') : s === 'bank' ? t('bin.bank') : t('bin.bins')}
             </button>
           </div>
         ))}
@@ -246,7 +248,7 @@ export function BinSearcher() {
           style={{ color: 'var(--app-text-dim)' }}
         >
           <ArrowLeft className="w-3.5 h-3.5" />
-          Volver
+          {t('bin.goBack')}
         </motion.button>
       )}
 
@@ -267,7 +269,7 @@ export function BinSearcher() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Buscar país..."
+                placeholder={t('bin.searchCountry')}
                 className="w-full pl-10 pr-4 py-3 text-sm rounded-xl border transition-colors focus:outline-none"
                 style={{
                   background: 'var(--app-input, #09090b)',
@@ -336,7 +338,7 @@ export function BinSearcher() {
                   {selectedCountry?.name}
                 </p>
                 <p className="text-[11px]" style={{ color: 'var(--app-text-dim)' }}>
-                  {banks.length} bancos disponibles
+                  {banks.length}{t('bin.banksAvailable')}
                 </p>
               </div>
             </div>
@@ -348,7 +350,7 @@ export function BinSearcher() {
                 type="text"
                 value={bankSearchQuery}
                 onChange={(e) => setBankSearchQuery(e.target.value)}
-                placeholder="Buscar banco..."
+                placeholder={t('bin.searchBank')}
                 className="w-full pl-10 pr-4 py-3 text-sm rounded-xl border transition-colors focus:outline-none"
                 style={{
                   background: 'var(--app-input, #09090b)',
@@ -384,7 +386,7 @@ export function BinSearcher() {
                       {bank.name}
                     </p>
                     <p className="text-[10px]" style={{ color: 'var(--app-text-dim)' }}>
-                      {bank.count} BINs
+                      {bank.count}{t('bin.binCount')}
                     </p>
                   </div>
                   <ChevronRight className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--app-text-dim)' }} />
@@ -418,7 +420,7 @@ export function BinSearcher() {
                   {bankName || selectedCountry?.name}
                 </p>
                 <p className="text-[11px]" style={{ color: 'var(--app-text-dim)' }}>
-                  {filteredBins.length} de {bins.length} BINs
+                  {filteredBins.length}{t('bin.filteredBinCount')}{bins.length}{t('bin.binsSuffix')}
                 </p>
               </div>
             </div>
@@ -437,7 +439,7 @@ export function BinSearcher() {
                       color: 'var(--app-text)',
                     }}
                   >
-                    <option value="all">Todas las redes</option>
+                    <option value="all">{t('bin.allNetworks')}</option>
                     {availableNetworks.map(n => (
                       <option key={n} value={n}>{n}</option>
                     ))}
@@ -454,9 +456,9 @@ export function BinSearcher() {
                       color: 'var(--app-text)',
                     }}
                   >
-                    <option value="all">Todos los tipos</option>
-                    {availableTypes.map(t => (
-                      <option key={t} value={t}>{t.toUpperCase()}</option>
+                    <option value="all">{t('bin.allTypes')}</option>
+                    {availableTypes.map(typ => (
+                      <option key={typ} value={typ}>{typ.toUpperCase()}</option>
                     ))}
                   </select>
                 )}
@@ -471,7 +473,7 @@ export function BinSearcher() {
                 inputMode="numeric"
                 value={binSearchQuery}
                 onChange={(e) => setBinSearchQuery(e.target.value)}
-                placeholder="Buscar BIN..."
+                placeholder={t('bin.searchBin')}
                 className="w-full pl-10 pr-4 py-2.5 text-xs font-mono rounded-lg border transition-colors focus:outline-none"
                 style={{
                   background: 'var(--app-input, #09090b)',
@@ -487,7 +489,7 @@ export function BinSearcher() {
                 <div className="text-center py-8">
                   <CreditCard className="w-8 h-8 mx-auto mb-2 opacity-30" />
                   <p className="text-xs" style={{ color: 'var(--app-text-dim)' }}>
-                    No se encontraron BINs
+                    {t('bin.noBinsFound')}
                   </p>
                 </div>
               ) : (
@@ -565,7 +567,7 @@ export function BinSearcher() {
             <div className="flex flex-col items-center gap-3">
               <Loader2 className="w-6 h-6 text-amber-500 animate-spin" />
               <p className="text-xs font-medium" style={{ color: 'var(--app-text)' }}>
-                Cargando...
+                {t('bin.loading')}
               </p>
             </div>
           </motion.div>

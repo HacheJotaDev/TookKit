@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { apiFetch } from '@/lib/api-config'
+import { useT } from '@/lib/i18n'
 
 // ============================================================
 // Types
@@ -65,18 +66,30 @@ function formatDate(val: string | number | null | undefined): string {
   return String(val)
 }
 
-function formatHitForCopy(r: IptvResult, index?: number): string {
+interface CopyLabels {
+  host: string
+  user: string
+  pass: string
+  status: string
+  created: string
+  exp: string
+  tz: string
+  m3u: string
+}
+
+function formatHitForCopy(r: IptvResult, index?: number, labels?: CopyLabels): string {
   const info = r.info
   const m3uUrl = info?.m3u_url || r.url
   const idx = index !== undefined ? ` #${index + 1}` : ''
-  return `╭───✦ 《 IPTV HIT${idx} 》✦ \n├● 🏢 Host: ${r.host || 'N/A'}\n├● 👤 User: ${r.username}\n├● 🔑 Pass: ${r.password}\n├● ✅ Status: ${info?.status || 'Active'}\n├● 📱 Active: ${info?.active_cons || '0'} / ${info?.max_connections || '0'}\n├● 📅 Created: ${info?.created_at || 'N/A'}\n├● ⏰ Exp: ${info?.exp_date || 'N/A'}\n├● 🌎 TZ: ${info?.timezone || 'N/A'}\n├● 🔗 M3U: ${m3uUrl}\n╰───✦ ✨ By HacheJota`
+  const lbl = labels || { host: 'Host:', user: 'User:', pass: 'Pass:', status: 'Status:', created: 'Created:', exp: 'Exp:', tz: 'TZ:', m3u: 'M3U:' }
+  return `╭───✦ 《 IPTV HIT${idx} 》✦ \n├● 🏢 ${lbl.host} ${r.host || 'N/A'}\n├● 👤 ${lbl.user} ${r.username}\n├● 🔑 ${lbl.pass} ${r.password}\n├● ✅ ${lbl.status} ${info?.status || 'Active'}\n├● 📱 Active: ${info?.active_cons || '0'} / ${info?.max_connections || '0'}\n├● 📅 ${lbl.created} ${info?.created_at || 'N/A'}\n├● ⏰ ${lbl.exp} ${info?.exp_date || 'N/A'}\n├● 🌎 ${lbl.tz} ${info?.timezone || 'N/A'}\n├● 🔗 ${lbl.m3u} ${m3uUrl}\n╰───✦ ✨ By HacheJota`
 }
 
-function timeAgo(dateStr: string): string {
+function timeAgo(dateStr: string, nowLabel?: string): string {
   try {
     const diff = Date.now() - new Date(dateStr).getTime()
     const mins = Math.floor(diff / 60000)
-    if (mins < 1) return 'Ahora'
+    if (mins < 1) return nowLabel || 'Ahora'
     if (mins < 60) return `${mins}m`
     const hrs = Math.floor(mins / 60)
     if (hrs < 24) return `${hrs}h`
@@ -270,13 +283,25 @@ function StatCard({ label, value, color, icon: Icon }: { label: string; value: n
 }
 
 function HitCard({ r, index, isHistory }: { r: IptvResult; index: number; isHistory?: boolean }) {
+  const { t } = useT()
   const info = r.info
   const m3uUrl = info?.m3u_url || r.url
   const [showPass, setShowPass] = useState(false)
 
+  const copyLabels: CopyLabels = {
+    host: t('iptv.copyHost'),
+    user: t('iptv.copyUser'),
+    pass: t('iptv.copyPass'),
+    status: t('iptv.copyStatus'),
+    created: t('iptv.copyCreated'),
+    exp: t('iptv.copyExp'),
+    tz: t('iptv.copyTz'),
+    m3u: t('iptv.copyM3u'),
+  }
+
   const copyHit = () => {
-    navigator.clipboard.writeText(formatHitForCopy(r))
-    toast.success('Hit copiado')
+    navigator.clipboard.writeText(formatHitForCopy(r, undefined, copyLabels))
+    toast.success(t('iptv.hitCopied'))
   }
 
   return (
@@ -290,10 +315,10 @@ function HitCard({ r, index, isHistory }: { r: IptvResult; index: number; isHist
             {isHistory && <span className="text-[8px] bg-white/[0.04] text-white/25 px-1.5 py-0.5 rounded font-mono">HIST</span>}
           </div>
           <div className="flex items-center gap-1">
-            <button onClick={() => setShowPass(!showPass)} className="p-1.5 rounded-lg hover:bg-white/[0.04] transition-colors" title={showPass ? 'Ocultar' : 'Mostrar'}>
+            <button onClick={() => setShowPass(!showPass)} className="p-1.5 rounded-lg hover:bg-white/[0.04] transition-colors" title={showPass ? t('iptv.hidePassword') : t('iptv.showPassword')}>
               {showPass ? <EyeOff className="w-3 h-3 text-white/20" /> : <Eye className="w-3 h-3 text-white/20" />}
             </button>
-            <button onClick={copyHit} className="p-1.5 rounded-lg hover:bg-white/[0.04] transition-colors" title="Copiar">
+            <button onClick={copyHit} className="p-1.5 rounded-lg hover:bg-white/[0.04] transition-colors" title={t('iptv.copy')}>
               <Copy className="w-3 h-3 text-white/20 hover:text-green-400 transition-colors" />
             </button>
           </div>
@@ -307,11 +332,11 @@ function HitCard({ r, index, isHistory }: { r: IptvResult; index: number; isHist
           <div className="flex items-center gap-1.5"><span className="text-white/20 text-[9px]">EXP</span><span className="text-amber-400/70">{info?.exp_date || 'N/A'}</span></div>
         </div>
         <div className="flex items-center gap-2 mt-3 pt-2.5 border-t border-white/[0.03]">
-          <button onClick={() => { navigator.clipboard.writeText(m3uUrl); toast.success('M3U URL copiada') }} className="flex items-center gap-1.5 text-[10px] bg-green-500/10 hover:bg-green-500/15 text-green-400/80 hover:text-green-400 px-2.5 py-1.5 rounded-lg transition-all font-medium">
+          <button onClick={() => { navigator.clipboard.writeText(m3uUrl); toast.success(t('iptv.m3uUrlCopied')) }} className="flex items-center gap-1.5 text-[10px] bg-green-500/10 hover:bg-green-500/15 text-green-400/80 hover:text-green-400 px-2.5 py-1.5 rounded-lg transition-all font-medium">
             <Link className="w-3 h-3" />M3U
           </button>
           <button onClick={copyHit} className="flex items-center gap-1.5 text-[10px] bg-white/[0.03] hover:bg-white/[0.06] text-white/40 hover:text-white/60 px-2.5 py-1.5 rounded-lg transition-all font-medium">
-            <Copy className="w-3 h-3" />Copiar
+            <Copy className="w-3 h-3" />{t('iptv.copy')}
           </button>
           <div className="flex-1" />
           {r.host && <span className="text-[9px] text-white/15 font-mono truncate max-w-[120px]">{r.host}</span>}
@@ -326,6 +351,8 @@ function HitCard({ r, index, isHistory }: { r: IptvResult; index: number; isHist
 // ============================================================
 
 export function IptvChecker() {
+  const { t } = useT()
+
   // ---- Form state ----
   const [comboList, setComboList] = useState('')
   const [serverHost, setServerHost] = useState('')
@@ -391,7 +418,7 @@ export function IptvChecker() {
   const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    if (!file.name.endsWith('.txt')) { toast.error('Solo archivos .txt'); return }
+    if (!file.name.endsWith('.txt')) { toast.error(t('iptv.onlyTxtFiles')); return }
     const reader = new FileReader()
     reader.onload = (ev) => {
       const text = ev.target?.result as string
@@ -399,37 +426,37 @@ export function IptvChecker() {
       setFileName(file.name)
       const lines = text.trim().split('\n').filter(l => l.trim())
       setLineCount(lines.length)
-      toast.success(`${lines.length} combos cargados`)
+      toast.success(`${lines.length}${t('iptv.combosLoaded')}`)
     }
     reader.readAsText(file)
     e.target.value = ''
-  }, [])
+  }, [t])
 
   // ---- Proxy file upload ----
   const handleProxyFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    if (!file.name.endsWith('.txt')) { toast.error('Solo archivos .txt'); return }
+    if (!file.name.endsWith('.txt')) { toast.error(t('iptv.onlyTxtFiles')); return }
     const reader = new FileReader()
     reader.onload = (ev) => {
       const text = ev.target?.result as string
       setProxyInput(text)
       setProxyFileName(file.name)
       const count = text.trim().split('\n').filter(l => l.trim()).length
-      toast.success(`${count} proxys cargados`)
+      toast.success(`${count}${t('iptv.proxysLoaded')}`)
     }
     reader.readAsText(file)
     e.target.value = ''
-  }, [])
+  }, [t])
 
   // ---- Validate proxies ----
   const validateProxies = useCallback(async () => {
     const lines = proxyInput.trim().split('\n').filter(l => l.trim())
-    if (lines.length === 0) { toast.error('Ingresa proxies'); return }
+    if (lines.length === 0) { toast.error(t('iptv.enterProxys')); return }
 
     setIsValidating(true)
     setValidProxies([])
-    toast.info(`Validando ${lines.length} proxys...`)
+    toast.info(`${t('iptv.validating')} ${lines.length}`)
 
     try {
       // Validate in batches of 50
@@ -453,23 +480,23 @@ export function IptvChecker() {
       setValidProxies(allValid)
       if (allValid.length > 0) {
         setProxyEnabled(true)
-        toast.success(`${allValid.length} proxys activos de ${lines.length}`)
+        toast.success(`${allValid.length}${t('iptv.activeCount')}`)
       } else {
-        toast.error('Sin proxys disponibles')
+        toast.error(t('iptv.noProxysAvailable'))
       }
     } catch {
-      toast.error('Error validando proxys')
+      toast.error(t('iptv.errorValidatingProxys'))
     } finally {
       setIsValidating(false)
     }
-  }, [proxyInput])
+  }, [proxyInput, t])
 
   // ---- Start check ----
   const startCheck = useCallback(async () => {
     const allLines = comboList.trim().split('\n').filter(l => l.trim())
-    if (allLines.length === 0) { toast.error('Carga un combo o pega líneas'); return }
-    if (inputMode === 'combo' && !serverHost.trim()) { toast.error('Ingresa el servidor (host:port)'); return }
-    if (proxyEnabled && validProxies.length === 0) { toast.error('Activa los proxys primero'); return }
+    if (allLines.length === 0) { toast.error(t('iptv.loadComboOrPaste')); return }
+    if (inputMode === 'combo' && !serverHost.trim()) { toast.error(t('iptv.enterServer')); return }
+    if (proxyEnabled && validProxies.length === 0) { toast.error(t('iptv.activateProxysFirst')); return }
 
     const sessionId = crypto.randomUUID()
     currentSessionIdRef.current = sessionId
@@ -488,7 +515,7 @@ export function IptvChecker() {
     let processed = 0, hits = 0, bad = 0, timeoutCount = 0
     const pendingHits: Array<{ host: string; username: string; password: string; url: string; info?: Record<string, unknown> }> = []
 
-    toast.info(`Analizando ${totalLines} líneas...`)
+    toast.info(`${t('iptv.analyzingLines')}${totalLines}${t('iptv.linesSuffix')}`)
 
     const useProxy = proxyEnabled && validProxies.length > 0
 
@@ -645,32 +672,56 @@ export function IptvChecker() {
     }
 
     if (processed === totalLines) {
-      toast.success(`Completado: ${hits} hits, ${bad} bad, ${timeoutCount} timeout`)
+      toast.success(`${t('iptv.completed')}${hits} ${t('iptv.statHits')}, ${bad} ${t('iptv.statBad')}, ${timeoutCount} ${t('iptv.statTimeout')}`)
     } else {
-      toast.info(`Cancelado: ${hits} hits encontrados`)
+      toast.info(`${t('iptv.cancelled')}${hits} ${t('iptv.hitsFoundText')}`)
     }
-  }, [comboList, inputMode, serverHost, threads, proxyEnabled, validProxies, getNextProxy])
+  }, [comboList, inputMode, serverHost, threads, proxyEnabled, validProxies, getNextProxy, t])
 
   // ---- Stop check ----
-  const stopCheck = useCallback(() => { stopRef.current = true; setIsRunning(false); toast.info('Cancelando...') }, [])
+  const stopCheck = useCallback(() => { stopRef.current = true; setIsRunning(false); toast.info(t('iptv.cancelling')) }, [t])
 
   // ---- Save hits to file ----
   const saveHitsToFile = useCallback(() => {
     const hitResults = results.filter(r => r.status === 'hit')
-    if (hitResults.length === 0) { toast.error('No hay hits para guardar'); return }
-    const text = hitResults.map((r, idx) => formatHitForCopy(r, idx)).join('\n\n')
+    if (hitResults.length === 0) { toast.error(t('iptv.noHitsToSave')); return }
+
+    const copyLabels: CopyLabels = {
+      host: t('iptv.copyHost'),
+      user: t('iptv.copyUser'),
+      pass: t('iptv.copyPass'),
+      status: t('iptv.copyStatus'),
+      created: t('iptv.copyCreated'),
+      exp: t('iptv.copyExp'),
+      tz: t('iptv.copyTz'),
+      m3u: t('iptv.copyM3u'),
+    }
+
+    const text = hitResults.map((r, idx) => formatHitForCopy(r, idx, copyLabels)).join('\n\n')
     const blob = new Blob([text], { type: 'text/plain' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url; a.download = `hits_${new Date().toISOString().slice(0, 10)}.txt`; a.click()
     URL.revokeObjectURL(url)
-    toast.success(`${hitResults.length} hits guardados`)
-  }, [results])
+    toast.success(`${hitResults.length}${t('iptv.hitsSaved')}`)
+  }, [results, t])
 
   // ---- Derived ----
   const hitResults = results.filter(r => r.status === 'hit')
   const currentModeSessions = typeof window !== 'undefined' ? getSavedSessions(inputMode) : []
   const viewHitResults = viewingSession?.results?.filter(r => r.status === 'hit') || []
+
+  // ---- Copy labels for inline use ----
+  const copyLabels: CopyLabels = {
+    host: t('iptv.copyHost'),
+    user: t('iptv.copyUser'),
+    pass: t('iptv.copyPass'),
+    status: t('iptv.copyStatus'),
+    created: t('iptv.copyCreated'),
+    exp: t('iptv.copyExp'),
+    tz: t('iptv.copyTz'),
+    m3u: t('iptv.copyM3u'),
+  }
 
   return (
     <div className="space-y-4">
@@ -681,10 +732,10 @@ export function IptvChecker() {
         <div className="p-3 pb-0">
           <div className="flex bg-[#060608] rounded-xl p-[3px] border border-white/[0.04]">
             <button onClick={() => switchMode('url')} disabled={isRunning} className={`flex-1 py-2 rounded-[10px] text-[11px] font-semibold transition-all duration-200 flex items-center justify-center gap-1.5 ${inputMode === 'url' ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20' : 'text-white/30 hover:text-white/50'}`}>
-              <Link className="w-3.5 h-3.5" />URL Mode
+              <Link className="w-3.5 h-3.5" />{t('iptv.urlMode')}
             </button>
             <button onClick={() => switchMode('combo')} disabled={isRunning} className={`flex-1 py-2 rounded-[10px] text-[11px] font-semibold transition-all duration-200 flex items-center justify-center gap-1.5 ${inputMode === 'combo' ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20' : 'text-white/30 hover:text-white/50'}`}>
-              <Hash className="w-3.5 h-3.5" />Combo Mode
+              <Hash className="w-3.5 h-3.5" />{t('iptv.comboMode')}
             </button>
           </div>
         </div>
@@ -694,13 +745,13 @@ export function IptvChecker() {
           {inputMode === 'combo' && (
             <div className="relative">
               <div className="absolute left-3 top-1/2 -translate-y-1/2"><Radio className="w-3.5 h-3.5 text-amber-500/50" /></div>
-              <input type="text" value={serverHost} onChange={(e) => setServerHost(e.target.value)} disabled={isRunning} placeholder="Servidor host:port  ej: canal-pro.xyz:8080" className="w-full bg-[#060608] border border-amber-500/20 rounded-xl pl-9 pr-3 py-2.5 text-[11px] text-white placeholder-white/15 focus:outline-none focus:border-amber-500/40 focus:ring-1 focus:ring-amber-500/10 font-mono transition-all disabled:opacity-40" />
+              <input type="text" value={serverHost} onChange={(e) => setServerHost(e.target.value)} disabled={isRunning} placeholder={t('iptv.serverPlaceholder')} className="w-full bg-[#060608] border border-amber-500/20 rounded-xl pl-9 pr-3 py-2.5 text-[11px] text-white placeholder-white/15 focus:outline-none focus:border-amber-500/40 focus:ring-1 focus:ring-amber-500/10 font-mono transition-all disabled:opacity-40" />
             </div>
           )}
 
           {/* Textarea (URL) */}
           {inputMode === 'url' && (
-            <textarea value={comboList} onChange={(e) => setComboList(e.target.value)} disabled={isRunning} placeholder="Pega URLs IPTV aquí...&#10;http://host:port/get.php?username=USER&password=PASS" rows={4} className="w-full bg-[#060608] border border-white/[0.05] rounded-xl px-3 py-2.5 text-[11px] text-white placeholder-white/10 focus:outline-none focus:border-amber-500/30 focus:ring-1 focus:ring-amber-500/10 font-mono resize-none transition-all disabled:opacity-40" />
+            <textarea value={comboList} onChange={(e) => setComboList(e.target.value)} disabled={isRunning} placeholder={`${t('iptv.pasteUrlsHere')}\nhttp://host:port/get.php?username=USER&password=PASS`} rows={4} className="w-full bg-[#060608] border border-white/[0.05] rounded-xl px-3 py-2.5 text-[11px] text-white placeholder-white/10 focus:outline-none focus:border-amber-500/30 focus:ring-1 focus:ring-amber-500/10 font-mono resize-none transition-all disabled:opacity-40" />
           )}
 
           {/* File upload (combo) */}
@@ -709,8 +760,8 @@ export function IptvChecker() {
               <input ref={fileInputRef} type="file" accept=".txt" onChange={handleFileUpload} className="hidden" />
               <button onClick={() => fileInputRef.current?.click()} disabled={isRunning} className="w-full border border-dashed border-white/[0.06] hover:border-amber-500/30 rounded-xl py-4 flex flex-col items-center justify-center gap-1.5 transition-all group disabled:opacity-40 bg-[#060608]/50">
                 <Upload className="w-4 h-4 text-white/15 group-hover:text-amber-500/50 transition-colors" />
-                <span className="text-[10px] text-white/20 group-hover:text-white/40 transition-colors font-medium">{fileName ? fileName : 'Subir combo .txt'}</span>
-                {lineCount > 0 && <span className="text-[9px] text-amber-500/50 font-mono bg-amber-500/5 px-2 py-0.5 rounded-full">{lineCount} líneas</span>}
+                <span className="text-[10px] text-white/20 group-hover:text-white/40 transition-colors font-medium">{fileName ? fileName : t('iptv.uploadCombo')}</span>
+                {lineCount > 0 && <span className="text-[9px] text-amber-500/50 font-mono bg-amber-500/5 px-2 py-0.5 rounded-full">{lineCount}{t('iptv.linesCount')}</span>}
               </button>
             </div>
           )}
@@ -723,9 +774,9 @@ export function IptvChecker() {
             >
               <div className="flex items-center gap-2">
                 <Shield className="w-3.5 h-3.5 text-white/20" />
-                <span className="text-[10px] font-semibold text-white/30 uppercase tracking-wider">Proxies</span>
+                <span className="text-[10px] font-semibold text-white/30 uppercase tracking-wider">{t('iptv.proxies')}</span>
                 {proxyEnabled && validProxies.length > 0 && (
-                  <span className="text-[8px] bg-green-500/15 text-green-400/80 px-1.5 py-0.5 rounded-full font-mono font-bold">{validProxies.length} activos</span>
+                  <span className="text-[8px] bg-green-500/15 text-green-400/80 px-1.5 py-0.5 rounded-full font-mono font-bold">{validProxies.length}{t('iptv.activeCount')}</span>
                 )}
               </div>
               <ChevronDown className={`w-3 h-3 text-white/20 transition-transform duration-200 ${showProxyPanel ? 'rotate-180' : ''}`} />
@@ -739,7 +790,7 @@ export function IptvChecker() {
                       value={proxyInput}
                       onChange={(e) => setProxyInput(e.target.value)}
                       disabled={isRunning || isValidating}
-                      placeholder="ip:port  o  ip:port:user:pass&#10;Un proxy por línea..."
+                      placeholder={`${t('iptv.proxyPlaceholderLine1')}\n${t('iptv.proxyPlaceholderLine2')}`}
                       rows={3}
                       className="w-full bg-[#060608] border border-white/[0.04] rounded-lg px-2.5 py-2 text-[10px] text-white placeholder-white/10 focus:outline-none focus:border-amber-500/30 font-mono resize-none transition-all disabled:opacity-40"
                     />
@@ -753,7 +804,7 @@ export function IptvChecker() {
                         className="flex items-center gap-1 text-[9px] bg-white/[0.03] hover:bg-white/[0.06] text-white/30 hover:text-white/50 px-2 py-1.5 rounded-lg transition-all font-medium disabled:opacity-30"
                       >
                         <Upload className="w-3 h-3" />
-                        {proxyFileName || 'Archivo'}
+                        {proxyFileName || t('iptv.file')}
                       </button>
                       <button
                         onClick={validateProxies}
@@ -761,7 +812,7 @@ export function IptvChecker() {
                         className="flex-1 flex items-center justify-center gap-1.5 text-[9px] bg-amber-500/15 hover:bg-amber-500/25 text-amber-400/80 font-bold px-2 py-1.5 rounded-lg transition-all disabled:opacity-30"
                       >
                         {isValidating ? <Loader2 className="w-3 h-3 animate-spin" /> : <ShieldCheck className="w-3 h-3" />}
-                        {isValidating ? 'Validando...' : 'Validar Proxies'}
+                        {isValidating ? t('iptv.validating') : t('iptv.validateProxies')}
                       </button>
                     </div>
 
@@ -770,7 +821,7 @@ export function IptvChecker() {
                       <div className="flex items-center justify-between bg-green-500/5 border border-green-500/10 rounded-lg px-2.5 py-2">
                         <div className="flex items-center gap-2">
                           <ShieldCheck className="w-3.5 h-3.5 text-green-400/60" />
-                          <span className="text-[10px] text-green-400/70 font-mono font-bold">{validProxies.length} proxies válidos</span>
+                          <span className="text-[10px] text-green-400/70 font-mono font-bold">{validProxies.length}{t('iptv.validProxysCount')}</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <div className="flex items-center gap-1">
@@ -790,11 +841,11 @@ export function IptvChecker() {
                     {/* Clear proxies */}
                     {(validProxies.length > 0 || proxyInput) && (
                       <button
-                        onClick={() => { setValidProxies([]); setProxyInput(''); setProxyEnabled(false); setProxyFileName(''); toast.success('Proxies eliminados') }}
+                        onClick={() => { setValidProxies([]); setProxyInput(''); setProxyEnabled(false); setProxyFileName(''); toast.success(t('iptv.proxiesCleared')) }}
                         className="flex items-center gap-1 text-[9px] text-red-400/30 hover:text-red-400/60 transition-colors font-medium"
                       >
                         <Trash2 className="w-3 h-3" />
-                        Limpiar proxies
+                        {t('iptv.clearProxies')}
                       </button>
                     )}
                   </div>
@@ -807,11 +858,11 @@ export function IptvChecker() {
           <div className="flex gap-2">
             <div className="relative">
               <div className="absolute left-2.5 top-1/2 -translate-y-1/2"><Timer className="w-3 h-3 text-white/15" /></div>
-              <input type="number" value={threads} onChange={(e) => setThreads(e.target.value)} min="1" max="20" placeholder="Hilos" disabled={isRunning} className="w-[72px] bg-[#060608] border border-white/[0.05] rounded-xl pl-8 pr-2 py-2.5 text-[11px] text-white focus:outline-none focus:border-amber-500/30 font-mono transition-all disabled:opacity-40" />
+              <input type="number" value={threads} onChange={(e) => setThreads(e.target.value)} min="1" max="20" placeholder={t('iptv.threads')} disabled={isRunning} className="w-[72px] bg-[#060608] border border-white/[0.05] rounded-xl pl-8 pr-2 py-2.5 text-[11px] text-white focus:outline-none focus:border-amber-500/30 font-mono transition-all disabled:opacity-40" />
             </div>
             <button onClick={startCheck} disabled={isRunning} className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed text-black font-bold rounded-xl py-2.5 text-[11px] transition-all flex items-center justify-center gap-2 shadow-lg shadow-amber-500/10 hover:shadow-amber-500/20">
               {isRunning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
-              {isRunning ? 'Verificando...' : 'Iniciar Check'}
+              {isRunning ? t('iptv.checking') : t('iptv.startCheck')}
             </button>
             {isRunning && (
               <motion.button initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} onClick={stopCheck} className="bg-red-500/15 hover:bg-red-500/25 text-red-400 rounded-xl px-3 py-2.5 transition-all">
@@ -829,7 +880,7 @@ export function IptvChecker() {
             <motion.div className="h-full rounded-full bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500" initial={{ width: 0 }} animate={{ width: `${progress}%` }} transition={{ duration: 0.3, ease: 'easeOut' }} />
           </div>
           <div className="flex justify-between text-[9px] text-white/15 font-mono px-0.5">
-            <span>{stats.total} / {stats.totalLines}{proxyEnabled && validProxies.length > 0 ? ' · proxy' : ''}</span>
+            <span>{stats.total} / {stats.totalLines}{proxyEnabled && validProxies.length > 0 ? t('iptv.proxyIndicator') : ''}</span>
             <span>{progress}%</span>
           </div>
         </div>
@@ -838,10 +889,10 @@ export function IptvChecker() {
       {/* ── Stats ── */}
       {stats.total > 0 && (
         <div className="grid grid-cols-4 gap-1.5">
-          <StatCard label="Total" value={stats.total} color="text-white/70" icon={Shield} />
-          <StatCard label="Hits" value={stats.hits} color="text-green-400" icon={Zap} />
-          <StatCard label="Bad" value={stats.bad} color="text-red-400/80" icon={X} />
-          <StatCard label="Timeout" value={stats.timeout} color="text-amber-400/80" icon={Timer} />
+          <StatCard label={t('iptv.statTotal')} value={stats.total} color="text-white/70" icon={Shield} />
+          <StatCard label={t('iptv.statHits')} value={stats.hits} color="text-green-400" icon={Zap} />
+          <StatCard label={t('iptv.statBad')} value={stats.bad} color="text-red-400/80" icon={X} />
+          <StatCard label={t('iptv.statTimeout')} value={stats.timeout} color="text-amber-400/80" icon={Timer} />
         </div>
       )}
 
@@ -851,12 +902,12 @@ export function IptvChecker() {
           <div className="flex items-center justify-between px-0.5">
             <div className="flex items-center gap-2">
               <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-              <h3 className="text-[10px] font-bold text-green-400/70 uppercase tracking-[0.2em]">Hits Encontrados</h3>
+              <h3 className="text-[10px] font-bold text-green-400/70 uppercase tracking-[0.2em]">{t('iptv.hitsFound')}</h3>
               <span className="text-[9px] text-white/15 font-mono bg-white/[0.03] px-1.5 py-0.5 rounded-full">{hitResults.length}</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <button onClick={saveHitsToFile} className="flex items-center gap-1 text-[10px] text-green-400/60 hover:text-green-400 transition-colors font-medium px-2 py-1 rounded-lg hover:bg-green-500/5"><Download className="w-3 h-3" />Guardar</button>
-              <button onClick={() => { navigator.clipboard.writeText(hitResults.map((r, idx) => formatHitForCopy(r, idx)).join('\n\n')); toast.success(`${hitResults.length} hits copiados`) }} className="flex items-center gap-1 text-[10px] text-amber-400/60 hover:text-amber-400 transition-colors font-medium px-2 py-1 rounded-lg hover:bg-amber-500/5"><Copy className="w-3 h-3" />Copiar Todo</button>
+              <button onClick={saveHitsToFile} className="flex items-center gap-1 text-[10px] text-green-400/60 hover:text-green-400 transition-colors font-medium px-2 py-1 rounded-lg hover:bg-green-500/5"><Download className="w-3 h-3" />{t('iptv.save')}</button>
+              <button onClick={() => { navigator.clipboard.writeText(hitResults.map((r, idx) => formatHitForCopy(r, idx, copyLabels)).join('\n\n')); toast.success(`${hitResults.length}${t('iptv.hitsCount')}`) }} className="flex items-center gap-1 text-[10px] text-amber-400/60 hover:text-amber-400 transition-colors font-medium px-2 py-1 rounded-lg hover:bg-amber-500/5"><Copy className="w-3 h-3" />{t('iptv.copyAll')}</button>
             </div>
           </div>
           <div className="max-h-[55vh] overflow-y-auto space-y-2 custom-scrollbar pr-0.5">
@@ -870,10 +921,10 @@ export function IptvChecker() {
         <div className="space-y-2">
           <div className="flex items-center justify-between px-0.5">
             <button onClick={() => { setShowHistory(!showHistory); setViewingSession(null) }} className="flex items-center gap-2 text-[10px] text-white/25 hover:text-white/40 transition-colors font-medium">
-              <Clock className="w-3.5 h-3.5" />Historial {inputMode === 'url' ? 'URL' : 'Combo'} ({currentModeSessions.length})
+              <Clock className="w-3.5 h-3.5" />{t('iptv.history')} {inputMode === 'url' ? 'URL' : 'Combo'} ({currentModeSessions.length})
               <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${showHistory ? 'rotate-180' : ''}`} />
             </button>
-            <button onClick={() => { clearAllSessions(inputMode); setViewingSession(null); setShowHistory(false); setSessionsVersion(v => v + 1); toast.success('Historial eliminado') }} className="flex items-center gap-1 text-[9px] text-red-400/30 hover:text-red-400/60 transition-colors font-medium px-2 py-1 rounded-lg hover:bg-red-500/5"><Trash2 className="w-3 h-3" />Borrar todo</button>
+            <button onClick={() => { clearAllSessions(inputMode); setViewingSession(null); setShowHistory(false); setSessionsVersion(v => v + 1); toast.success(t('iptv.historyDeleted')) }} className="flex items-center gap-1 text-[9px] text-red-400/30 hover:text-red-400/60 transition-colors font-medium px-2 py-1 rounded-lg hover:bg-red-500/5"><Trash2 className="w-3 h-3" />{t('iptv.deleteAll')}</button>
           </div>
           <AnimatePresence>
             {showHistory && (
@@ -888,20 +939,20 @@ export function IptvChecker() {
                           <div className="w-8 h-8 rounded-lg bg-green-500/10 flex items-center justify-center shrink-0"><span className="text-[10px] font-bold text-green-400">{session.stats.hits}</span></div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
-                              <span className="text-[10px] font-mono text-white/50 truncate">{session.inputMode === 'url' ? 'URL Mode' : session.serverHost}</span>
-                              <span className="text-[8px] text-white/15 bg-white/[0.03] px-1.5 py-0.5 rounded-full">{timeAgo(session.createdAt)}</span>
+                              <span className="text-[10px] font-mono text-white/50 truncate">{session.inputMode === 'url' ? t('iptv.urlMode') : session.serverHost}</span>
+                              <span className="text-[8px] text-white/15 bg-white/[0.03] px-1.5 py-0.5 rounded-full">{timeAgo(session.createdAt, t('iptv.timeAgoNow'))}</span>
                             </div>
                             <div className="flex items-center gap-2.5 mt-0.5 text-[9px] text-white/20 font-mono">
-                              <span>{session.totalLines} líneas</span><span className="text-green-500/40">{session.stats.hits} hits</span><span className="text-red-500/30">{session.stats.bad} bad</span>
+                              <span>{session.totalLines}{t('iptv.linesCount')}</span><span className="text-green-500/40">{sessionHits.length}{t('iptv.hitsCount')}</span><span className="text-red-500/30">{session.stats.bad} bad</span>
                             </div>
                           </div>
                           <div className="flex items-center gap-1 shrink-0">
                             {sessionHits.length > 0 && (
                               <button onClick={() => setViewingSession(isViewing ? null : session)} className="text-[9px] bg-white/[0.04] hover:bg-white/[0.08] text-white/40 hover:text-white/60 px-2.5 py-1.5 rounded-lg transition-all flex items-center gap-1 font-medium">
-                                <Eye className="w-3 h-3" />{isViewing ? 'Cerrar' : `${sessionHits.length} hits`}
+                                <Eye className="w-3 h-3" />{isViewing ? t('iptv.close') : `${sessionHits.length}${t('iptv.hitsCount')}`}
                               </button>
                             )}
-                            <button onClick={() => { deleteSession(inputMode, session.id); if (isViewing) setViewingSession(null); setSessionsVersion(v => v + 1); toast.success('Sesión eliminada') }} className="p-1.5 rounded-lg hover:bg-red-500/10 text-white/15 hover:text-red-400/60 transition-all" title="Eliminar sesión"><Trash2 className="w-3 h-3" /></button>
+                            <button onClick={() => { deleteSession(inputMode, session.id); if (isViewing) setViewingSession(null); setSessionsVersion(v => v + 1); toast.success(t('iptv.sessionDeleted')) }} className="p-1.5 rounded-lg hover:bg-red-500/10 text-white/15 hover:text-red-400/60 transition-all" title={t('iptv.deleteSession')}><Trash2 className="w-3 h-3" /></button>
                           </div>
                         </div>
                       </motion.div>
@@ -919,8 +970,8 @@ export function IptvChecker() {
         {viewingSession && viewHitResults.length > 0 && (
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }} className="space-y-2.5">
             <div className="flex items-center justify-between px-0.5">
-              <div className="flex items-center gap-2"><Clock className="w-3.5 h-3.5 text-white/15" /><h3 className="text-[10px] font-bold text-green-400/50 uppercase tracking-[0.2em]">Hits de sesión anterior</h3><span className="text-[9px] text-white/15 font-mono bg-white/[0.03] px-1.5 py-0.5 rounded-full">{viewHitResults.length}</span></div>
-              <button onClick={() => { navigator.clipboard.writeText(viewHitResults.map((r, idx) => formatHitForCopy(r, idx)).join('\n\n')); toast.success(`${viewHitResults.length} hits copiados`) }} className="flex items-center gap-1 text-[10px] text-amber-400/50 hover:text-amber-400 transition-colors font-medium px-2 py-1 rounded-lg hover:bg-amber-500/5"><Copy className="w-3 h-3" />Copiar Todo</button>
+              <div className="flex items-center gap-2"><Clock className="w-3.5 h-3.5 text-white/15" /><h3 className="text-[10px] font-bold text-green-400/50 uppercase tracking-[0.2em]">{t('iptv.previousSessionHits')}</h3><span className="text-[9px] text-white/15 font-mono bg-white/[0.03] px-1.5 py-0.5 rounded-full">{viewHitResults.length}</span></div>
+              <button onClick={() => { navigator.clipboard.writeText(viewHitResults.map((r, idx) => formatHitForCopy(r, idx, copyLabels)).join('\n\n')); toast.success(`${viewHitResults.length}${t('iptv.hitsCount')}`) }} className="flex items-center gap-1 text-[10px] text-amber-400/50 hover:text-amber-400 transition-colors font-medium px-2 py-1 rounded-lg hover:bg-amber-500/5"><Copy className="w-3 h-3" />{t('iptv.copyAll')}</button>
             </div>
             <div className="max-h-[40vh] overflow-y-auto space-y-2 custom-scrollbar pr-0.5">
               {viewHitResults.map((r, i) => <HitCard key={`hist-${r.id}`} r={r} index={i} isHistory />)}
