@@ -4,6 +4,8 @@ import { NextRequest, NextResponse } from 'next/server'
 const cache = new Map<string, { data: Record<string, unknown>; timestamp: number }>()
 const CACHE_TTL = 30 * 60 * 1000
 
+const IPGEO_API_KEY = '607609183b2b45ad833096cb7bc40438'
+
 function getCached(ip: string): Record<string, unknown> | null {
   const entry = cache.get(ip)
   if (entry && Date.now() - entry.timestamp < CACHE_TTL) return entry.data
@@ -20,191 +22,38 @@ function setCache(ip: string, data: Record<string, unknown>) {
 }
 
 // ============================================================
-// SCAMALYTICS PARSER
+// SOURCE 1: ipgeolocation.io — Geolocation (rich data, API key)
 // ============================================================
 
-function parseScamalytics(html: string): Record<string, unknown> | null {
-  // Quick check — if no Fraud Score found, the page is a CF challenge/not the real page
-  const scoreMatch = html.match(/Fraud Score:\s*(\d+)/)
-  if (!scoreMatch) return null
-
-  const score = parseInt(scoreMatch[1], 10)
-
-  // Parse risk level from panel title text
-  let risk = 'unknown'
-  const titleMatch = html.match(/class="panel_title[^"]*"[^>]*>(.*?)<\/div>/)
-  if (titleMatch) {
-    const t = titleMatch[1].trim().toLowerCase()
-    if (t.includes('high')) risk = 'high'
-    else if (t.includes('medium')) risk = 'medium'
-    else if (t.includes('low')) risk = 'low'
-  }
-
-  // Parse panel body
-  const bodyMatch = html.match(/class="panel_body">([\s\S]*?)<\/div>/)
-  const description = bodyMatch ? bodyMatch[1].replace(/<[^>]*>/g, '').trim() : ''
-
-  // Parse table rows: <th>Label</th> ... <td>Value</td>
-  function parseRow(label: string): string {
-    const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    const regex = new RegExp(
-      `<th[^>]*>\\s*${escaped}\\s*</th>[\\s\\S]*?<td[^>]*>([\\s\\S]*?)</td>`,
-      'i'
-    )
-    const match = html.match(regex)
-    return match ? match[1].replace(/<[^>]*>/g, '').trim() : ''
-  }
-
-  // Parse risk div: <th>Label</th> ... <td><div class="risk ...">Value</div></td>
-  function parseRiskRow(label: string): string {
-    const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    const regex = new RegExp(
-      `<th[^>]*>\\s*${escaped}\\s*</th>[\\s\\S]*?<td[^>]*><div[^>]*class="[^"]*risk[^"]*"[^>]*>([\\s\\S]*?)</div>\\s*</td>`,
-      'i'
-    )
-    const match = html.match(regex)
-    return match ? match[1].replace(/<[^>]*>/g, '').trim() : ''
-  }
-
-  const operator = {
-    hostname: parseRow('Hostname'),
-    asn: parseRow('ASN'),
-    ispName: parseRow('ISP Name'),
-    orgName: parseRow('Organization Name'),
-    connectionType: parseRow('Connection type'),
-  }
-
-  const location = {
-    countryName: parseRow('Country Name'),
-    countryCode: parseRow('Country Code'),
-    state: parseRow('State / Province'),
-    district: parseRow('District / County'),
-    city: parseRow('City'),
-    postalCode: parseRow('Postal Code'),
-    latitude: parseRow('Latitude'),
-    longitude: parseRow('Longitude'),
-  }
-
-  const datacenter = parseRiskRow('Datacenter')
-
-  const proxies: Record<string, string> = {}
-  for (const label of ['Anonymizing VPN', 'Tor Exit Node', 'Server', 'Public Proxy', 'Web Proxy', 'Search Engine Robot']) {
-    proxies[label.replace(/\s+/g, '_').toLowerCase()] = parseRiskRow(label)
-  }
-
-  const blacklists: Record<string, string> = {}
-  for (const label of ['Firehol', 'IP2ProxyLite', 'IPsum', 'Spamhaus', 'X4Bnet Spambot']) {
-    blacklists[label.replace(/\s+/g, '_').toLowerCase()] = parseRiskRow(label)
-  }
-
-  const residentialProxy = parseRiskRow('Residential Proxy')
-
-  return {
-    score,
-    risk,
-    description,
-    operator,
-    location,
-    datacenter,
-    proxies,
-    blacklists,
-    residentialProxy,
-    source: 'scamalytics',
-  }
-}
-
-// ============================================================
-// SCAMALYTICS FETCH (with Cloudflare bypass headers)
-// ============================================================
-
-async function fetchScamalytics(ip: string): Promise<Record<string, unknown> | null> {
+async function fetchIpGeo(ip: string): Promise<Record<string, unknown> | null> {
   try {
-    const res = await fetch(`https://scamalytics.com/ip/${ip}`, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Cache-Control': 'max-age=0',
-        'Sec-Ch-Ua': '"Chromium";v="136", "Google Chrome";v="136", "Not.A/Brand";v="99"',
-        'Sec-Ch-Ua-Mobile': '?0',
-        'Sec-Ch-Ua-Platform': '"Windows"',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'none',
-        'Sec-Fetch-User': '?1',
-        'Upgrade-Insecure-Requests': '1',
-        'Cookie': 'cookie_decision=accept',
-        'Referer': 'https://scamalytics.com/',
-      },
-      redirect: 'follow',
-      signal: AbortSignal.timeout(15000),
-    })
-
-    const html = await res.text()
-    return parseScamalytics(html)
+    const res = await fetch(
+      `https://api.ipgeolocation.io/ipgeo?apiKey=${IPGEO_API_KEY}&ip=${ip}`,
+      { signal: AbortSignal.timeout(8000) }
+    )
+    if (!res.ok) return null
+    const json = await res.json() as Record<string, unknown>
+    if (!json.ip) return null
+    return json
   } catch {
     return null
   }
 }
 
 // ============================================================
-// FALLBACK: ip-api.com (free, no key, proxy/VPN detection)
+// SOURCE 2: ip-api.com — Security (proxy/VPN/hosting detection)
 // ============================================================
 
-async function fetchIpApi(ip: string): Promise<Record<string, unknown> | null> {
+async function fetchIpSecurity(ip: string): Promise<Record<string, unknown> | null> {
   try {
-    const res = await fetch(`http://ip-api.com/json/${ip}?fields=status,message,country,countryCode,regionName,city,zip,lat,lon,isp,org,as,proxy,hosting,query`, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0',
-      },
-      signal: AbortSignal.timeout(8000),
-    })
-
+    const res = await fetch(
+      `http://ip-api.com/json/${ip}?fields=status,message,proxy,hosting,query`,
+      { signal: AbortSignal.timeout(8000) }
+    )
     if (!res.ok) return null
-
     const json = await res.json() as Record<string, unknown>
     if (json.status !== 'success') return null
-
-    const isProxy = json.proxy === true
-    const isHosting = json.hosting === true
-    const fraudScore = (isProxy ? 75 : 0) + (isHosting ? 50 : 0)
-    const score = Math.min(100, fraudScore)
-
-    return {
-      score,
-      risk: score >= 50 ? 'high' : score >= 25 ? 'medium' : 'low',
-      description: `IP ${ip} is ${json.isp || 'unknown ISP'}. ${isProxy ? 'Detected as proxy/VPN.' : ''}${isHosting ? 'Detected as hosting/datacenter.' : ''}`,
-      operator: {
-        ispName: (json.isp as string) || '',
-        orgName: (json.org as string) || '',
-        asn: ((json.as as string) || '').replace(/^AS\d+\s/, ''),
-        hostname: '',
-        connectionType: '',
-      },
-      location: {
-        countryName: (json.country as string) || '',
-        countryCode: (json.countryCode as string) || '',
-        state: (json.regionName as string) || '',
-        district: '',
-        city: (json.city as string) || '',
-        postalCode: (json.zip as string) || '',
-        latitude: json.lat ? String(json.lat) : '',
-        longitude: json.lon ? String(json.lon) : '',
-      },
-      datacenter: isHosting ? 'Yes' : 'No',
-      proxies: {
-        anonymizing_vpn: isProxy ? 'Yes' : 'No',
-        tor_exit_node: 'No',
-        server: isHosting ? 'Yes' : 'No',
-        public_proxy: isProxy ? 'Yes' : 'No',
-        web_proxy: 'No',
-        search_engine_robot: 'No',
-      },
-      blacklists: {},
-      residentialProxy: isProxy ? 'Yes' : 'No',
-      source: 'ip-api',
-    }
+    return json
   } catch {
     return null
   }
@@ -229,17 +78,65 @@ export async function GET(req: NextRequest) {
       })
     }
 
-    // Try scamalytics first, fall back to ip-api.com
-    let result = await fetchScamalytics(ip)
-    if (!result) {
-      result = await fetchIpApi(ip)
-    }
+    // Fetch both sources in parallel
+    const [geo, security] = await Promise.all([fetchIpGeo(ip), fetchIpSecurity(ip)])
 
-    if (!result) {
+    if (!geo && !security) {
       return NextResponse.json({ error: 'No se pudo obtener datos de esta IP' }, { status: 502 })
     }
 
-    const data = { ip, ...result }
+    // Compute threat score from security data
+    const isProxy = (security?.proxy as boolean) || false
+    const isHosting = (security?.hosting as boolean) || false
+    const threatScore = Math.min(100, (isProxy ? 75 : 0) + (isHosting ? 50 : 0))
+
+    const risk = threatScore >= 50 ? 'high' : threatScore >= 25 ? 'medium' : 'low'
+
+    // Build location from geo data
+    const location = {
+      countryName: (geo?.country_name as string) || '',
+      countryCode: (geo?.country_code2 as string) || '',
+      countryFlag: (geo?.country_flag as string) || '',
+      countryEmoji: (geo?.country_emoji as string) || '',
+      state: (geo?.state_prov as string) || '',
+      district: (geo?.district as string) || '',
+      city: (geo?.city as string) || '',
+      postalCode: (geo?.zipcode as string) || '',
+      latitude: (geo?.latitude as string) || '',
+      longitude: (geo?.longitude as string) || '',
+      timezone: ((geo?.time_zone as Record<string, unknown>)?.name as string) || '',
+      currency: ((geo?.currency as Record<string, unknown>)?.code as string) || '',
+      languages: (geo?.languages as string) || '',
+    }
+
+    // Build operator from geo data
+    const operator = {
+      ispName: (geo?.isp as string) || '',
+      orgName: (geo?.organization as string) || '',
+      connectionType: (geo?.connection_type as string) || '',
+    }
+
+    // Build security checks
+    const proxies: Record<string, string> = {
+      anonymizing_vpn: isProxy ? 'Yes' : 'No',
+      tor_exit_node: 'No',
+      server: isHosting ? 'Yes' : 'No',
+      public_proxy: isProxy ? 'Yes' : 'No',
+      web_proxy: 'No',
+      search_engine_robot: 'No',
+    }
+
+    const data = {
+      ip,
+      score: threatScore,
+      risk,
+      operator,
+      location,
+      datacenter: isHosting ? 'Yes' : 'No',
+      proxies,
+      residentialProxy: isProxy ? 'Yes' : 'No',
+    }
+
     setCache(ip, data)
 
     return NextResponse.json(data, {

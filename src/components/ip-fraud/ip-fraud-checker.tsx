@@ -17,10 +17,7 @@ interface IpFraudData {
   ip: string
   score: number
   risk: 'low' | 'medium' | 'high' | 'unknown'
-  description: string
   operator: {
-    hostname?: string
-    asn?: string
     ispName?: string
     orgName?: string
     connectionType?: string
@@ -28,16 +25,19 @@ interface IpFraudData {
   location: {
     countryName?: string
     countryCode?: string
+    countryFlag?: string
+    countryEmoji?: string
     state?: string
     district?: string
     city?: string
     postalCode?: string
     latitude?: string
     longitude?: string
+    timezone?: string
+    currency?: string
   }
   datacenter: string
   proxies: Record<string, string>
-  blacklists: Record<string, string>
   residentialProxy: string
 }
 
@@ -96,28 +96,16 @@ const PROXY_LABELS: Record<string, Record<string, string>> = {
   },
 }
 
-const BLACKLIST_LABELS: Record<string, Record<string, string>> = {
-  es: {
-    firehol: 'Firehol',
-    ip2proxylite: 'IP2ProxyLite',
-    ipsum: 'IPsum',
-    spamhaus: 'Spamhaus',
-    x4bnet_spambot: 'X4Bnet Spambot',
-  },
-  en: { firehol: 'Firehol', ip2proxylite: 'IP2ProxyLite', ipsum: 'IPsum', spamhaus: 'Spamhaus', x4bnet_spambot: 'X4Bnet Spambot' },
-  pt: { firehol: 'Firehol', ip2proxylite: 'IP2ProxyLite', ipsum: 'IPsum', spamhaus: 'Spamhaus', x4bnet_spambot: 'X4Bnet Spambot' },
-}
-
 const OPERATOR_LABELS: Record<string, Record<string, string>> = {
-  es: { hostname: 'Nombre de Host', asn: 'ASN', ispName: 'ISP', orgName: 'Organización', connectionType: 'Tipo de Conexión' },
-  en: { hostname: 'Hostname', asn: 'ASN', ispName: 'ISP', orgName: 'Organization', connectionType: 'Connection Type' },
-  pt: { hostname: 'Nome do Host', asn: 'ASN', ispName: 'ISP', orgName: 'Organização', connectionType: 'Tipo de Conexão' },
+  es: { ispName: 'ISP', orgName: 'Organización', connectionType: 'Tipo de Conexión' },
+  en: { ispName: 'ISP', orgName: 'Organization', connectionType: 'Connection Type' },
+  pt: { ispName: 'ISP', orgName: 'Organização', connectionType: 'Tipo de Conexão' },
 }
 
 const LOCATION_LABELS: Record<string, Record<string, string>> = {
-  es: { countryName: 'País', countryCode: 'Código', state: 'Estado / Provincia', district: 'Distrito', city: 'Ciudad', postalCode: 'Código Postal' },
-  en: { countryName: 'Country', countryCode: 'Code', state: 'State / Province', district: 'District', city: 'City', postalCode: 'Postal Code' },
-  pt: { countryName: 'País', countryCode: 'Código', state: 'Estado / Província', district: 'Distrito', city: 'Cidade', postalCode: 'Código Postal' },
+  es: { countryName: 'País', state: 'Estado / Provincia', district: 'Distrito', city: 'Ciudad', postalCode: 'Código Postal', timezone: 'Zona Horaria', currency: 'Moneda' },
+  en: { countryName: 'Country', state: 'State / Province', district: 'District', city: 'City', postalCode: 'Postal Code', timezone: 'Timezone', currency: 'Currency' },
+  pt: { countryName: 'País', state: 'Estado / Província', district: 'Distrito', city: 'Cidade', postalCode: 'Código Postal', timezone: 'Fuso Horário', currency: 'Moeda' },
 }
 
 const UI_TEXT = {
@@ -134,9 +122,7 @@ const UI_TEXT = {
     operator: 'Operador',
     location: 'Ubicación',
     proxies: 'Proxies & VPN',
-    blacklists: 'Listas Negras',
     datacenter: 'Datacenter',
-    description: 'Descripción',
     no: 'No',
     yes: 'Sí',
     unknown: 'Desconocido',
@@ -155,7 +141,6 @@ const UI_TEXT = {
     operator: 'Operator',
     location: 'Location',
     proxies: 'Proxies & VPN',
-    blacklists: 'Blacklists',
     datacenter: 'Datacenter',
     description: 'Description',
     no: 'No',
@@ -176,7 +161,6 @@ const UI_TEXT = {
     operator: 'Operador',
     location: 'Localização',
     proxies: 'Proxies & VPN',
-    blacklists: 'Listas Negras',
     datacenter: 'Datacenter',
     description: 'Descrição',
     no: 'Não',
@@ -484,7 +468,10 @@ export function IpFraudChecker() {
           >
             {/* IP + Risk Badge */}
             <div className="flex items-center justify-between px-1">
-              <span className="text-lg font-bold font-mono">{data.ip}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-lg font-bold font-mono">{data.ip}</span>
+                {data.location.countryEmoji && <span className="text-xl">{data.location.countryEmoji}</span>}
+              </div>
               <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full border ${getRiskConfig(data.risk).bg} ${getRiskConfig(data.risk).border}`}>
                 {getRiskIcon(data.risk)}
                 <span className={`text-xs font-semibold ${getRiskConfig(data.risk).color}`}>
@@ -503,18 +490,6 @@ export function IpFraudChecker() {
               <ScoreGauge score={data.score} />
             </motion.div>
 
-            {/* Description */}
-            {data.description && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.15 }}
-                className="text-xs leading-relaxed opacity-50 px-1"
-              >
-                {data.description}
-              </motion.div>
-            )}
-
             {/* Operator */}
             <SectionCard
               title={t.operator}
@@ -522,8 +497,6 @@ export function IpFraudChecker() {
             >
               <InfoRow label={OPERATOR_LABELS[lang].ispName} value={data.operator.ispName} icon={<Server className="w-3.5 h-3.5" />} />
               <InfoRow label={OPERATOR_LABELS[lang].orgName} value={data.operator.orgName} icon={<Building2 className="w-3.5 h-3.5" />} />
-              <InfoRow label={OPERATOR_LABELS[lang].asn} value={data.operator.asn} icon={<Globe className="w-3.5 h-3.5" />} />
-              <InfoRow label={OPERATOR_LABELS[lang].hostname} value={data.operator.hostname} />
               <InfoRow label={OPERATOR_LABELS[lang].connectionType} value={data.operator.connectionType} />
             </SectionCard>
 
@@ -537,6 +510,8 @@ export function IpFraudChecker() {
               <InfoRow label={LOCATION_LABELS[lang].state} value={data.location.state} />
               <InfoRow label={LOCATION_LABELS[lang].district} value={data.location.district} />
               <InfoRow label={LOCATION_LABELS[lang].postalCode} value={data.location.postalCode} />
+              <InfoRow label={LOCATION_LABELS[lang].timezone} value={data.location.timezone} />
+              <InfoRow label={LOCATION_LABELS[lang].currency} value={data.location.currency} />
             </SectionCard>
 
             {/* Proxies & VPN */}
@@ -557,20 +532,6 @@ export function IpFraudChecker() {
                   value={data.residentialProxy}
                 />
               )}
-            </SectionCard>
-
-            {/* Blacklists */}
-            <SectionCard
-              title={t.blacklists}
-              icon={<ShieldAlert className="w-4 h-4 opacity-50" />}
-            >
-              {Object.entries(data.blacklists).map(([key, value]) => (
-                <CheckRow
-                  key={key}
-                  label={BLACKLIST_LABELS[lang][key] || key}
-                  value={value}
-                />
-              ))}
             </SectionCard>
 
 
