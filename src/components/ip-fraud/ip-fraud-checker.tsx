@@ -141,7 +141,6 @@ const UI_TEXT = {
     yes: 'Sí',
     unknown: 'Desconocido',
     notDetected: 'No detectado',
-    poweredBy: 'Datos de',
   },
   en: {
     title: 'IP Fraud',
@@ -163,7 +162,6 @@ const UI_TEXT = {
     yes: 'Yes',
     unknown: 'Unknown',
     notDetected: 'Not detected',
-    poweredBy: 'Data from',
   },
   pt: {
     title: 'IP Fraude',
@@ -185,7 +183,6 @@ const UI_TEXT = {
     yes: 'Sim',
     unknown: 'Desconhecido',
     notDetected: 'Não detectado',
-    poweredBy: 'Dados de',
   },
 } as const
 
@@ -297,6 +294,28 @@ function SectionCard({ title, icon, children }: { title: string; icon: React.Rea
 }
 
 // ============================================================
+// CLIENT-SIDE CACHE (module level — persists across re-renders)
+// ============================================================
+
+const clientCache = new Map<string, { data: IpFraudData; timestamp: number }>()
+const CLIENT_CACHE_TTL = 30 * 60 * 1000 // 30 min
+
+function getClientCached(ip: string): IpFraudData | null {
+  const entry = clientCache.get(ip)
+  if (entry && Date.now() - entry.timestamp < CLIENT_CACHE_TTL) return entry.data
+  if (entry) clientCache.delete(ip)
+  return null
+}
+
+function setClientCache(ip: string, data: IpFraudData) {
+  clientCache.set(ip, { data, timestamp: Date.now() })
+  if (clientCache.size > 100) {
+    const oldest = Array.from(clientCache.keys())[0]
+    clientCache.delete(oldest)
+  }
+}
+
+// ============================================================
 // MAIN COMPONENT
 // ============================================================
 
@@ -335,6 +354,13 @@ export function IpFraudChecker() {
     setError('')
     setData(null)
 
+    // Check client cache first — avoids Vercel invocation entirely
+    const cached = getClientCached(ip)
+    if (cached) {
+      setData(cached)
+      return
+    }
+
     try {
       const res = await fetch(`/api/ip-fraud?ip=${encodeURIComponent(ip)}`, {
         signal: AbortSignal.timeout(15000),
@@ -346,6 +372,7 @@ export function IpFraudChecker() {
       }
       const result = await res.json() as IpFraudData
       setData(result)
+      setClientCache(ip, result)
     } catch {
       setError(t.errorFetch)
     } finally {
@@ -546,21 +573,7 @@ export function IpFraudChecker() {
               ))}
             </SectionCard>
 
-            {/* Powered by */}
-            <div className="text-center pt-2 pb-4">
-              <span className="text-[10px] opacity-20">
-                {t.poweredBy}{' '}
-                <a
-                  href={`https://scamalytics.com/ip/${data.ip}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline hover:opacity-50 transition-opacity"
-                >
-                  Scamalytics
-                </a>
-                <ExternalLink className="inline w-2.5 h-2.5 ml-0.5 opacity-40" />
-              </span>
-            </div>
+
           </motion.div>
         )}
       </AnimatePresence>
