@@ -496,34 +496,113 @@ export function IptvChecker() {
       if (stopRef.current) break
 
       const batch = allLines.slice(i, i + concurrency)
-      const batchPromises = batch.map(async (line, idx) => {
-        if (stopRef.current) return null
+      let validResults: IptvResult[] = []
 
-        let result: Omit<IptvResult, 'id'>
-        if (useProxy) {
+      if (useProxy) {
+        // Proxy mode: each line uses a different proxy — individual calls needed
+        const batchPromises = batch.map(async (line, idx) => {
+          if (stopRef.current) return null
           const proxy = getNextProxy()
-          if (proxy) {
-            result = await checkLineProxy(line.trim(), inputMode, serverHost.trim(), proxy)
-          } else {
-            result = await checkLineDirect(line.trim(), inputMode, serverHost.trim())
+          const result = proxy
+            ? await checkLineProxy(line.trim(), inputMode, serverHost.trim(), proxy)
+            : await checkLineDirect(line.trim(), inputMode, serverHost.trim())
+          return {
+            id: `line-${i + idx}-${Date.now()}`,
+            url: result.url || line.trim(),
+            status: result.status,
+            host: result.host,
+            username: result.username,
+            password: result.password,
+            info: result.info,
+          } as IptvResult
+        })
+        const batchResults = await Promise.all(batchPromises)
+        validResults = batchResults.filter((r): r is IptvResult => r !== null)
+      } else {
+        // No proxy: try direct first, batch-failures to Vercel (1 invocation)
+        const parsedEntries = batch.map((line, idx) => {
+          const parsed = buildCheckUrl(line.trim(), inputMode, serverHost.trim())
+          return { idx, line: line.trim(), parsed }
+        })
+
+        // Step 1: Direct browser calls
+        const directPromises = parsedEntries.map(async ({ idx, parsed }) => {
+          if (stopRef.current || !parsed) return { idx, result: null as Omit<IptvResult, 'id'> | null, directOk: false }
+          const { checkUrl, sHost, username, password } = parsed
+          try {
+            const controller = new AbortController()
+            const tid = setTimeout(() => controller.abort(), 15000)
+            const response = await fetch(checkUrl, { signal: controller.signal, mode: 'cors' })
+            clearTimeout(tid)
+            const text = await response.text()
+            const hit = parseIptvResponse(text, sHost, username, password)
+            if (hit) return { idx, result: hit, directOk: true }
+            return { idx, result: { status: 'bad' as const, host: sHost, username, url: '' }, directOk: false }
+          } catch (directError: unknown) {
+            if (directError instanceof DOMException && directError.name === 'AbortError') {
+              return { idx, result: { status: 'timeout' as const, host: parsed.sHost, username: '', url: '' }, directOk: false }
+            }
+            return { idx, result: null, directOk: false }
           }
-        } else {
-          result = await checkLineDirect(line.trim(), inputMode, serverHost.trim())
+        })
+
+        const directResults = await Promise.all(directPromises)
+
+        // Separate hits/bads from failures that need Vercel batch
+        const resolved: IptvResult[] = []
+        const failedLines: string[] = []
+
+        for (const { idx, result, directOk } of directResults) {
+          if (!result) {
+            failedLines.push(batch[idx].trim())
+          } else if (directOk || result.status === 'timeout') {
+            resolved.push({
+              id: `line-${i + idx}-${Date.now()}`,
+              url: result.url || batch[idx].trim(),
+              status: result.status,
+              host: result.host,
+              username: result.username,
+              password: result.password,
+              info: result.info,
+            })
+          } else {
+            // Direct returned 'bad' — might be CORS, try via Vercel batch
+            failedLines.push(batch[idx].trim())
+          }
         }
 
-        return {
-          id: `line-${i + idx}-${Date.now()}`,
-          url: result.url || line.trim(),
-          status: result.status,
-          host: result.host,
-          username: result.username,
-          password: result.password,
-          info: result.info,
-        } as IptvResult
-      })
+        // Step 2: Batch failures to Vercel (1 invocation for all failed lines)
+        if (failedLines.length > 0) {
+          try {
+            const batchRes = await apiFetch('/api/iptv/batch', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ lines: failedLines, inputMode, serverHost: serverHost.trim() }),
+            })
+            const batchData = await batchRes.json()
+            const serverResults = batchData.results || []
 
-      const batchResults = await Promise.all(batchPromises)
-      const validResults = batchResults.filter((r): r is IptvResult => r !== null)
+            for (const sr of serverResults) {
+              resolved.push({
+                id: `line-${i + sr.index}-${Date.now()}`,
+                url: sr.url || sr.line,
+                status: sr.status,
+                host: sr.host,
+                username: sr.username,
+                password: sr.password,
+                info: sr.info,
+              })
+            }
+          } catch {
+            // If batch also fails, mark all failed lines as bad
+            for (const failedLine of failedLines) {
+              resolved.push({ id: `line-fail-${Date.now()}`, url: failedLine, status: 'bad', host: '', username: '', password: '' })
+            }
+          }
+        }
+
+        validResults = resolved
+      }
 
       for (const r of validResults) {
         processed++

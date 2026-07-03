@@ -764,63 +764,93 @@ function CheckerTab() {
     setResults([])
     setStats({ total: 0, live: 0, dead: 0 })
 
+    const BATCH_SIZE = 10
     let total = 0
     let live = 0
     let dead = 0
+    let baseIdx = 0
 
-    for (const line of lines) {
+    for (let i = 0; i < lines.length; i += BATCH_SIZE) {
       if (stopRef.current) break
 
-      const cc = line.trim()
-      if (!cc) continue
+      const batch = lines.slice(i, i + BATCH_SIZE).map(l => l.trim())
+      const batchBaseIdx = baseIdx
+      baseIdx += batch.length
 
-      setResults(prev => [...prev, { cc, status: 'checking' }])
+      // Show all cards in batch as "checking"
+      setResults(prev => [
+        ...prev,
+        ...batch.map(cc => ({ cc, status: 'checking' as const })),
+      ])
 
       try {
         const res = await apiFetch('/api/check', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cc }),
+          body: JSON.stringify({ ccs: batch }),
         })
         const data = await res.json()
+        const batchResults = data.results || []
 
-        total++
+        for (let j = 0; j < batch.length; j++) {
+          const r = batchResults[j]
+          total++
+          const globalIdx = batchBaseIdx + j
 
-        const isLive = data.code === 1 || data.status === 'Live' || data.msg?.toLowerCase().includes('live') || data.msg?.toLowerCase().includes('approved')
-
-        if (isLive) {
-          live++
-          setResults(prev =>
-            prev.map((r, i) =>
-              i === prev.length - 1
-                ? { ...r, status: 'live', message: data.msg || t('checker.aprobada_msg'), brand: data.brand || data.type, bank: data.bank || data.issuer }
-                : r
+          if (r) {
+            const isLive = r.code === 1 || r.status === 'Live' || r.msg?.toLowerCase().includes('live') || r.msg?.toLowerCase().includes('approved')
+            if (isLive) {
+              live++
+              setResults(prev =>
+                prev.map((item, idx) =>
+                  idx === globalIdx
+                    ? { ...item, status: 'live' as const, message: r.msg || t('checker.aprobada_msg'), brand: r.brand || r.type, bank: r.bank || r.issuer }
+                    : item
+                )
+              )
+            } else {
+              dead++
+              setResults(prev =>
+                prev.map((item, idx) =>
+                  idx === globalIdx
+                    ? { ...item, status: 'dead' as const, message: r.msg || r.message || t('checker.rechazada_msg') }
+                    : item
+                )
+              )
+            }
+          } else {
+            dead++
+            setResults(prev =>
+              prev.map((item, idx) =>
+                idx === globalIdx
+                  ? { ...item, status: 'error' as const, message: t('checker.error_conexion') }
+                  : item
+              )
             )
-          )
-        } else {
-          dead++
-          setResults(prev =>
-            prev.map((r, i) =>
-              i === prev.length - 1
-                ? { ...r, status: 'dead', message: data.msg || data.message || t('checker.rechazada_msg') }
-                : r
-            )
-          )
+          }
         }
 
         setStats({ total, live, dead })
       } catch {
-        dead++
-        total++
-        setResults(prev =>
-          prev.map((r, i) =>
-            i === prev.length - 1 ? { ...r, status: 'error', message: t('checker.error_conexion') } : r
+        for (let j = 0; j < batch.length; j++) {
+          const globalIdx = batchBaseIdx + j
+          dead++
+          total++
+          setResults(prev =>
+            prev.map((item, idx) =>
+              idx === globalIdx
+                ? { ...item, status: 'error' as const, message: t('checker.error_conexion') }
+                : item
+            )
           )
-        )
+        }
         setStats({ total, live, dead })
       }
 
-      await new Promise(r => setTimeout(r, 500))
+      // Small delay between batches to avoid rate limiting
+      if (i + BATCH_SIZE < lines.length) {
+        await new Promise(r => setTimeout(r, 300))
+      }
     }
 
     setIsRunning(false)
