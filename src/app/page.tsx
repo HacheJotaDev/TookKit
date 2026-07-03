@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   CreditCard, Search, Tv, Mail, Settings, Copy, Check, Play,
   Trash2, RefreshCw, ChevronDown, Info, Moon, Sun,
-  Loader2, Square, Send, ExternalLink, Zap, AlertTriangle, Shield,
+  Loader2, Square, Send, ExternalLink, Zap, AlertTriangle, Shield, Fingerprint, ScanSearch,
   MessageCircle, Phone, Share2, MapPin, Landmark, Globe, MonitorSmartphone
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -368,7 +368,7 @@ function detectCardType(bin: string): string {
 
 const TAB_KEYS: { id: TabId; key: string; icon: typeof CreditCard }[] = [
   { id: 'cards', key: 'nav.tarjetas', icon: CreditCard },
-  { id: 'checker', key: 'nav.checker', icon: Search },
+  { id: 'checker', key: 'nav.checker', icon: Fingerprint },
   { id: 'tools', key: 'nav.herramientas', icon: Zap },
   { id: 'settings', key: 'nav.ajustes', icon: Settings },
 ]
@@ -378,7 +378,7 @@ const toolCards: { id: ToolId; labelKey: string; descKey: string; icon: typeof C
   { id: 'email', labelKey: 'tool.email', descKey: 'tool.email_desc', icon: Mail, color: 'text-amber-400', bg: 'bg-amber-500/10' },
   { id: 'address', labelKey: 'tool.address', descKey: 'tool.address_desc', icon: MapPin, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
   { id: 'iban', labelKey: 'tool.iban', descKey: 'tool.iban_desc', icon: Landmark, color: 'text-purple-400', bg: 'bg-purple-500/10' },
-  { id: 'binsearch', labelKey: 'tool.binsearch', descKey: 'tool.binsearch_desc', icon: CreditCard, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+  { id: 'binsearch', labelKey: 'tool.binsearch', descKey: 'tool.binsearch_desc', icon: ScanSearch, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
   { id: 'ipfraud', labelKey: 'tool.ipfraud', descKey: 'tool.ipfraud_desc', icon: Shield, color: 'text-rose-400', bg: 'bg-rose-500/10' },
 ]
 
