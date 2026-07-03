@@ -468,10 +468,7 @@ export function IpFraudChecker() {
           >
             {/* IP + Risk Badge */}
             <div className="flex items-center justify-between px-1">
-              <div className="flex items-center gap-2">
-                <span className="text-lg font-bold font-mono">{data.ip}</span>
-                {data.location.countryEmoji && <span className="text-xl">{data.location.countryEmoji}</span>}
-              </div>
+              <span className="text-lg font-bold font-mono">{data.ip}</span>
               <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full border ${getRiskConfig(data.risk).bg} ${getRiskConfig(data.risk).border}`}>
                 {getRiskIcon(data.risk)}
                 <span className={`text-xs font-semibold ${getRiskConfig(data.risk).color}`}>
@@ -510,8 +507,7 @@ export function IpFraudChecker() {
               <InfoRow label={LOCATION_LABELS[lang].state} value={data.location.state} />
               <InfoRow label={LOCATION_LABELS[lang].district} value={data.location.district} />
               <InfoRow label={LOCATION_LABELS[lang].postalCode} value={data.location.postalCode} />
-              <InfoRow label={LOCATION_LABELS[lang].timezone} value={data.location.timezone} />
-              <InfoRow label={LOCATION_LABELS[lang].currency} value={data.location.currency} />
+
             </SectionCard>
 
             {/* Proxies & VPN */}
