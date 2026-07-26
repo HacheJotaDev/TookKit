@@ -333,3 +333,35 @@ input[type="number"] {
   0% { transform: translateX(-100%); }
   100% { transform: translateX(100%); }
 }
+
+/* Email body responsive */
+.email-body {
+  max-width: 100% !important;
+  overflow-x: auto !important;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+.email-body img {
+  max-width: 100% !important;
+  height: auto !important;
+}
+.email-body table {
+  max-width: 100% !important;
+  width: auto !important;
+  table-layout: auto !important;
+}
+.email-body td,
+.email-body th {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: 100% !important;
+}
+.email-body div[style*="width"],
+.email-body table[width],
+.email-body td[width],
+.email-body th[width] {
+  max-width: 100% !important;
+}
+.email-body > * {
+  max-width: 100% !important;
+}

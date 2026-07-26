@@ -1148,7 +1148,7 @@ function EmailTab() {
         </div>
 
         <div
-          className="bg-[#111113] theme-card rounded-xl border border-white/[0.06] p-4 prose prose-invert prose-sm max-w-none"
+          className="email-body bg-[#111113] theme-card rounded-xl border border-white/[0.06] p-4 prose prose-invert prose-sm max-w-none"
           dangerouslySetInnerHTML={{ __html: sanitizeHtml(selectedMsg.body || '') }}
         />
       </div>
