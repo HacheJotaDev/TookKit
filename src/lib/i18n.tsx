@@ -183,6 +183,8 @@ const T: Record<Lang, Record<string, string>> = {
     // Location labels
     'ipfraud.countryLabel': 'País', 'ipfraud.state': 'Estado / Provincia',
     'ipfraud.district': 'Distrito', 'ipfraud.city': 'Ciudad', 'ipfraud.postalCode': 'Código Postal',
+    'banner.grupo_titulo': '¡Únete al grupo oficial!',
+    'banner.grupo_desc': 'Comunidad, novedades y soporte en WhatsApp',
   },
 
   // ============================================================
@@ -316,6 +318,8 @@ const T: Record<Lang, Record<string, string>> = {
     'ipfraud.isp': 'ISP', 'ipfraud.org': 'Organization', 'ipfraud.connectionType': 'Connection Type',
     'ipfraud.countryLabel': 'Country', 'ipfraud.state': 'State / Province',
     'ipfraud.district': 'District', 'ipfraud.city': 'City', 'ipfraud.postalCode': 'Postal Code',
+    'banner.grupo_titulo': 'Join the official group!',
+    'banner.grupo_desc': 'Community, news and support on WhatsApp',
   },
 
   // ============================================================
@@ -449,6 +453,8 @@ const T: Record<Lang, Record<string, string>> = {
     'ipfraud.isp': 'ISP', 'ipfraud.org': 'Organização', 'ipfraud.connectionType': 'Tipo de Conexão',
     'ipfraud.countryLabel': 'País', 'ipfraud.state': 'Estado / Província',
     'ipfraud.district': 'Distrito', 'ipfraud.city': 'Cidade', 'ipfraud.postalCode': 'Código Postal',
+    'banner.grupo_titulo': 'Entre no grupo oficial!',
+    'banner.grupo_desc': 'Comunidade, novidades e suporte no WhatsApp',
   },
 }
 
