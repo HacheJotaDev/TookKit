@@ -202,7 +202,7 @@ export function IpFraudChecker() {
   }, [])
 
   const checkIp = useCallback(async (ip: string) => {
-    if (!ip || !/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip)) return
+    if (!ip || !/^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/.test(ip)) return
     setIsLoading(true)
     setError('')
     setData(null)

@@ -119,13 +119,53 @@ async function fetchScamalytics(ip: string): Promise<ScamalyticsResponse | null>
 }
 
 // ============================================================
+// ipwho.is — Enriquecimiento gratuito de ISP/ubicación.
+// El plan gratuito de Scamalytics oculta ISP/org/geo con el texto
+// "PREMIUM FIELD - upgrade to view"; con ipwho.is se rellenan gratis.
+// ============================================================
+
+interface IpwhoResponse {
+  success?: boolean
+  country?: string
+  country_code?: string
+  region?: string
+  city?: string
+  postal?: string
+  connection?: { isp?: string; org?: string; domain?: string }
+}
+
+async function fetchIpwho(ip: string): Promise<IpwhoResponse | null> {
+  try {
+    const res = await fetch(`https://ipwho.is/${ip}`, {
+      signal: AbortSignal.timeout(8000),
+      headers: { 'Accept': 'application/json' },
+    })
+    if (!res.ok) return null
+    const json = await res.json() as IpwhoResponse
+    if (!json || json.success === false) return null
+    return json
+  } catch {
+    return null
+  }
+}
+
+const PREMIUM_PLACEHOLDER_RE = /premium field|upgrade to view/i
+
+function cleanField(v: string | null | undefined): string {
+  if (!v) return ''
+  return PREMIUM_PLACEHOLDER_RE.test(v) ? '' : String(v).trim()
+}
+
+const IPV4_RE = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/
+
+// ============================================================
 // MAIN ROUTE
 // ============================================================
 
 export async function GET(req: NextRequest) {
   try {
     const ip = req.nextUrl.searchParams.get('ip')
-    if (!ip || !/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip)) {
+    if (!ip || !IPV4_RE.test(ip)) {
       return NextResponse.json({ error: 'Invalid IP address' }, { status: 400 })
     }
 
@@ -147,26 +187,36 @@ export async function GET(req: NextRequest) {
     const core = scam.scamalytics
     const ext = scam.external_datasources
 
+    // ipwho.is como respaldo para los campos ocultos por el plan gratuito
+    const needsEnrich =
+      PREMIUM_PLACEHOLDER_RE.test(core.scamalytics_isp || '') ||
+      PREMIUM_PLACEHOLDER_RE.test(core.scamalytics_org || '') ||
+      PREMIUM_PLACEHOLDER_RE.test(ext.dbip?.ip_country_name || '') ||
+      PREMIUM_PLACEHOLDER_RE.test(ext.dbip?.ip_city || '') ||
+      (!core.scamalytics_isp && !core.scamalytics_org) ||
+      !ext.dbip?.ip_country_name
+    const geo = needsEnrich ? await fetchIpwho(ip) : null
+
     // Score and Risk
     const score = core.scamalytics_score
     const risk = core.scamalytics_risk === 'high' ? 'high'
       : core.scamalytics_risk === 'medium' ? 'medium' : 'low'
 
-    // Operator — prefer scamalytics core ISP/Org
+    // Operator — prefer scamalytics core ISP/Org, then dbip, then ipwho.is
     const operator = {
-      ispName: core.scamalytics_isp || ext.dbip?.isp_name || '',
-      orgName: core.scamalytics_org || ext.dbip?.org_name || '',
-      connectionType: ext.dbip?.connection_type || '',
+      ispName: cleanField(core.scamalytics_isp) || cleanField(ext.dbip?.isp_name) || cleanField(geo?.connection?.isp) || '',
+      orgName: cleanField(core.scamalytics_org) || cleanField(ext.dbip?.org_name) || cleanField(geo?.connection?.org) || '',
+      connectionType: cleanField(ext.dbip?.connection_type) || '',
     }
 
     // Location from dbip (most detailed geolocation in Scamalytics response)
     const location = {
-      countryName: ext.dbip?.ip_country_name || '',
-      countryCode: ext.dbip?.ip_country_code || '',
-      state: ext.dbip?.ip_state_name || '',
-      district: ext.dbip?.ip_district_name || '',
-      city: ext.dbip?.ip_city || '',
-      postalCode: ext.dbip?.ip_postcode || '',
+      countryName: cleanField(ext.dbip?.ip_country_name) || cleanField(geo?.country) || '',
+      countryCode: cleanField(ext.dbip?.ip_country_code) || cleanField(geo?.country_code) || '',
+      state: cleanField(ext.dbip?.ip_state_name) || cleanField(geo?.region) || '',
+      district: cleanField(ext.dbip?.ip_district_name) || '',
+      city: cleanField(ext.dbip?.ip_city) || cleanField(geo?.city) || '',
+      postalCode: cleanField(ext.dbip?.ip_postcode) || cleanField(geo?.postal) || '',
     }
 
     // Proxy & VPN checks — aggregated from multiple external sources

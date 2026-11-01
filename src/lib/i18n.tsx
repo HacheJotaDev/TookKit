@@ -51,6 +51,8 @@ const T: Record<Lang, Record<string, string>> = {
     'checker.ingresa_cc': 'Ingresa al menos una tarjeta', 'checker.listo_aprobadas': 'aprobadas',
     'checker.listo_rechazadas': 'rechazadas', 'checker.detenido': 'Proceso detenido',
     'checker.copiado': 'Copiado', 'checker.error_conexion': 'Error de conexión',
+    'checker.error_api': 'Servicio de chequeo saturado — reintenta',
+    'checker.errores': 'Errores',
     'checker.aprobada_msg': 'Aprobada', 'checker.rechazada_msg': 'Rechazada',
 
     // ============================================================
@@ -211,6 +213,8 @@ const T: Record<Lang, Record<string, string>> = {
     'checker.ingresa_cc': 'Enter at least one card', 'checker.listo_aprobadas': 'approved',
     'checker.listo_rechazadas': 'declined', 'checker.detenido': 'Process stopped',
     'checker.copiado': 'Copied', 'checker.error_conexion': 'Connection error',
+    'checker.error_api': 'Checking service saturated — try again',
+    'checker.errores': 'Errors',
     'checker.aprobada_msg': 'Approved', 'checker.rechazada_msg': 'Declined',
 
     'email.tu_correo': 'Your Temp Email', 'email.actualizar': 'Refresh inbox',
@@ -346,6 +350,8 @@ const T: Record<Lang, Record<string, string>> = {
     'checker.ingresa_cc': 'Insira pelo menos um cartão', 'checker.listo_aprobadas': 'aprovadas',
     'checker.listo_rechazadas': 'rejeitadas', 'checker.detenido': 'Processo parado',
     'checker.copiado': 'Copiado', 'checker.error_conexion': 'Erro de conexão',
+    'checker.error_api': 'Serviço de checagem saturado — tente novamente',
+    'checker.errores': 'Erros',
     'checker.aprobada_msg': 'Aprovada', 'checker.rechazada_msg': 'Rejeitada',
 
     'email.tu_correo': 'Seu Email Temp', 'email.actualizar': 'Atualizar caixa',

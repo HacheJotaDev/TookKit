@@ -651,12 +651,30 @@ function CardsTab() {
 // TAB 2: CCS CHECKER
 // ============================================================
 
+// chkr.cc permite CORS desde cualquier origen → llamada directa desde el
+// navegador (cada usuario usa su propia IP y su propio cupo de rate-limit).
+// El servidor (/api/check) queda como respaldo cuando el directo no responde.
+const CHKR_URL = 'https://api.chkr.cc/'
+
+async function checkCcDirect(cc: string): Promise<Record<string, unknown>> {
+  const res = await fetch(CHKR_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ data: cc, charge: false }),
+  })
+  return res.json() as Promise<Record<string, unknown>>
+}
+
+function isApiError(r: Record<string, unknown> | null | undefined): boolean {
+  return !!r && typeof r === 'object' && !!r.error
+}
+
 function CheckerTab() {
   const { t } = useT()
   const [ccList, setCcList] = useState('')
   const [results, setResults] = useState<CheckResult[]>([])
   const [isRunning, setIsRunning] = useState(false)
-  const [stats, setStats] = useState({ total: 0, live: 0, dead: 0 })
+  const [stats, setStats] = useState({ total: 0, live: 0, dead: 0, error: 0 })
   const stopRef = useRef(false)
 
   const startCheck = useCallback(async () => {
@@ -669,12 +687,13 @@ function CheckerTab() {
     setIsRunning(true)
     stopRef.current = false
     setResults([])
-    setStats({ total: 0, live: 0, dead: 0 })
+    setStats({ total: 0, live: 0, dead: 0, error: 0 })
 
     const BATCH_SIZE = 10
     let total = 0
     let live = 0
     let dead = 0
+    let errored = 0
     let baseIdx = 0
 
     for (let i = 0; i < lines.length; i += BATCH_SIZE) {
@@ -690,69 +709,83 @@ function CheckerTab() {
         ...batch.map(cc => ({ cc, status: 'checking' as const })),
       ])
 
+      // ── 1) Directo a chkr.cc desde el navegador ──
+      // Cada usuario usa su propia IP → su propio cupo de rate-limit
+      // (vía servidor las IPs de Vercel están rate-limitadas).
+      let batchResults: (Record<string, unknown> | null)[] = batch.map(() => null)
       try {
-        const res = await apiFetch('/api/check', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ccs: batch }),
-        })
-        const data = await res.json()
-        const batchResults = data.results || []
-
-        for (let j = 0; j < batch.length; j++) {
-          const r = batchResults[j]
-          total++
-          const globalIdx = batchBaseIdx + j
-
-          if (r) {
-            const isLive = r.code === 1 || r.status === 'Live' || r.msg?.toLowerCase().includes('live') || r.msg?.toLowerCase().includes('approved')
-            if (isLive) {
-              live++
-              setResults(prev =>
-                prev.map((item, idx) =>
-                  idx === globalIdx
-                    ? { ...item, status: 'live' as const, message: r.msg || t('checker.aprobada_msg'), brand: r.brand || r.type, bank: r.bank || r.issuer }
-                    : item
-                )
-              )
-            } else {
-              dead++
-              setResults(prev =>
-                prev.map((item, idx) =>
-                  idx === globalIdx
-                    ? { ...item, status: 'dead' as const, message: r.msg || r.message || t('checker.rechazada_msg') }
-                    : item
-                )
-              )
-            }
-          } else {
-            dead++
-            setResults(prev =>
-              prev.map((item, idx) =>
-                idx === globalIdx
-                  ? { ...item, status: 'error' as const, message: t('checker.error_conexion') }
-                  : item
-              )
-            )
-          }
-        }
-
-        setStats({ total, live, dead })
+        const settled = await Promise.allSettled(batch.map(cc => checkCcDirect(cc)))
+        batchResults = settled.map(s => (s.status === 'fulfilled' ? (s.value as Record<string, unknown>) : null))
       } catch {
-        for (let j = 0; j < batch.length; j++) {
-          const globalIdx = batchBaseIdx + j
-          dead++
-          total++
+        batchResults = batch.map(() => null)
+      }
+
+      // ── 2) Reintento vía servidor SOLO de las que fallaron ──
+      const failedIdx = batchResults
+        .map((r, idx) => (!r || isApiError(r) ? idx : -1))
+        .filter(idx => idx >= 0)
+
+      if (failedIdx.length > 0) {
+        try {
+          const res = await apiFetch('/api/check', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ccs: failedIdx.map(idx => batch[idx]) }),
+          })
+          const data = await res.json()
+          const retry = (data.results || []) as Record<string, unknown>[]
+          retry.forEach((rr, k) => {
+            const origIdx = failedIdx[k]
+            if (origIdx === undefined) return
+            if (rr && !isApiError(rr)) batchResults[origIdx] = rr
+          })
+        } catch {
+          // fallback también falló → quedan como error
+        }
+      }
+
+      // ── 3) Mapear resultados ──
+      for (let j = 0; j < batch.length; j++) {
+        const r = batchResults[j]
+        total++
+        const globalIdx = batchBaseIdx + j
+
+        if (!r || isApiError(r)) {
+          errored++
           setResults(prev =>
             prev.map((item, idx) =>
               idx === globalIdx
-                ? { ...item, status: 'error' as const, message: t('checker.error_conexion') }
+                ? { ...item, status: 'error' as const, message: t('checker.error_api') }
+                : item
+            )
+          )
+          continue
+        }
+
+        const rec = r as { code?: number; status?: string; msg?: string; message?: string; brand?: string; type?: string; bank?: string; issuer?: string }
+        const isLive = rec.code === 1 || rec.status === 'Live' || rec.msg?.toLowerCase().includes('live') || rec.msg?.toLowerCase().includes('approved')
+        if (isLive) {
+          live++
+          setResults(prev =>
+            prev.map((item, idx) =>
+              idx === globalIdx
+                ? { ...item, status: 'live' as const, message: rec.msg || t('checker.aprobada_msg'), brand: rec.brand || rec.type, bank: rec.bank || rec.issuer }
+                : item
+            )
+          )
+        } else {
+          dead++
+          setResults(prev =>
+            prev.map((item, idx) =>
+              idx === globalIdx
+                ? { ...item, status: 'dead' as const, message: rec.msg || rec.message || t('checker.rechazada_msg') }
                 : item
             )
           )
         }
-        setStats({ total, live, dead })
       }
+
+      setStats({ total, live, dead, error: errored })
 
       // Small delay between batches to avoid rate limiting
       if (i + BATCH_SIZE < lines.length) {
@@ -810,7 +843,7 @@ function CheckerTab() {
 
       {/* Stats */}
       {stats.total > 0 && (
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-4 gap-2">
           <div className="rounded-xl border border-white/[0.06] p-3 text-center" style={{ background: 'var(--app-card)' }}>
             <p className="text-xl font-bold font-mono" style={{ color: 'var(--app-text)' }}>{stats.total}</p>
             <p className="text-[10px] uppercase tracking-wider font-medium mt-0.5" style={{ color: 'var(--app-text-dim)' }}>{t('checker.total')}</p>
@@ -822,6 +855,10 @@ function CheckerTab() {
           <div className="rounded-xl border border-red-500/20 p-3 text-center bg-red-500/5">
             <p className="text-xl font-bold font-mono text-red-500">{stats.dead}</p>
             <p className="text-[10px] uppercase tracking-wider font-medium mt-0.5 text-red-500/60">{t('checker.rechazadas')}</p>
+          </div>
+          <div className="rounded-xl border border-amber-500/20 p-3 text-center bg-amber-500/5">
+            <p className="text-xl font-bold font-mono text-amber-500">{stats.error}</p>
+            <p className="text-[10px] uppercase tracking-wider font-medium mt-0.5 text-amber-500/60">{t('checker.errores')}</p>
           </div>
         </div>
       )}

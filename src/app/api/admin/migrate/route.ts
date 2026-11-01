@@ -279,11 +279,19 @@ export async function GET() {
       )
     }
 
+    // Estado real de la conexión (antes se reportaba 'connected' siempre)
+    let dbStatus = 'connected'
+    try {
+      await prisma.$queryRaw`SELECT 1`
+    } catch {
+      dbStatus = 'error'
+    }
+
     const verification = await verifyTables()
     const existingCount = Object.values(verification).filter(Boolean).length
 
     return NextResponse.json({
-      database: 'connected',
+      database: dbStatus,
       tables: verification,
       totalTables: existingCount,
       expectedTables: Object.keys(verification).length,
