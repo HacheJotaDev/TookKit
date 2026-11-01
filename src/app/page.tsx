@@ -76,52 +76,65 @@ interface GeneratedAddress {
   phone: string
 }
 
-// ─── Direct mail.tm API client (bypasses Vercel proxy) ────
-// mail.tm allows CORS from any origin (access-control-allow-origin: *)
-// Calling directly avoids Vercel's IP-based rate limiting issues
+// ─── Email temporal multi-proveedor ─────────────────────────
+// PRINCIPAL: GuerrillaMail — API con CORS abierto (access-control-allow-origin: *),
+//   llamada directa desde el navegador (cada usuario usa su propia IP, sin
+//   rate-limit compartido). Crear cuenta = 1 sola petición.
+// RESPALDO: mail.tm / mail.gw vía proxy server-side (/api/email/*), porque
+//   mail.tm ya no devuelve cabeceras CORS y api.mail.gw está caído a menudo.
 
-const MAIL_TM_BASE = 'https://api.mail.tm'
-const MAIL_PROVIDERS = [
-  { name: 'mail.tm', baseUrl: 'https://api.mail.tm' },
-  { name: 'mail.gw', baseUrl: 'https://api.mail.gw' },
-]
+const GUERRILLA_BASE = 'https://api.guerrillamail.com/ajax.php'
 
-async function mailFetch(path: string, options: RequestInit = {}, provider?: string): Promise<Response> {
-  const baseUrl = provider && provider !== 'mail.tm'
-    ? MAIL_PROVIDERS.find(p => p.name === provider)?.baseUrl || MAIL_TM_BASE
-    : MAIL_TM_BASE
-  return fetch(`${baseUrl}${path}`, {
-    ...options,
-    headers: {
-      'Accept': 'application/ld+json',
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-  })
+// Convierte "Nombre" <usuario@dominio> en { address, name }
+function parseFrom(raw: string): { address: string; name: string } {
+  const s = (raw || '').trim()
+  const m = s.match(/^\s*"?([^"<]*?)"?\s*<([^>]+)>\s*$/)
+  if (m) return { name: m[1].trim() || m[2].trim(), address: m[2].trim() }
+  return { name: s, address: s }
+}
+
+// Decodifica entidades HTML (&#039; &quot; etc.) de forma segura
+function decodeEntities(s: string): string {
+  if (typeof document === 'undefined') return s
+  try {
+    const el = document.createElement('textarea')
+    el.innerHTML = s
+    return el.value
+  } catch {
+    return s
+  }
 }
 
 async function getAvailableDomain(): Promise<{ domain: string; provider: string }> {
-  for (const prov of MAIL_PROVIDERS) {
-    try {
-      const res = await fetch(`${prov.baseUrl}/domains`, {
-        headers: { Accept: 'application/ld+json' },
-      })
-      if (res.ok) {
-        const data = await res.json()
-        const members = data['hydra:member'] || data
-        if (Array.isArray(members)) {
-          const active = members.filter((d: Record<string, unknown>) => d.isActive !== false && d.domain)
-          if (active.length > 0) {
-            return { domain: active[0].domain as string, provider: prov.name }
-          }
+  // mail.tm (vía proxy server-side — directo falla por CORS)
+  try {
+    const res = await fetch('/api/email/domains', { headers: { Accept: 'application/ld+json' } })
+    if (res.ok) {
+      const data = await res.json()
+      const members = data['hydra:member'] || data
+      if (Array.isArray(members)) {
+        const active = members.filter((d: Record<string, unknown>) => d.isActive !== false && d.domain)
+        if (active.length > 0) {
+          return { domain: active[0].domain as string, provider: 'mail.tm' }
         }
       }
-    } catch {
-      // Try next provider
     }
-  }
-  // Hardcoded fallback
-  return { domain: 'wshu.net', provider: 'mail.tm' }
+  } catch {}
+  // mail.gw (vía proxy — suele estar caído, por eso va al final)
+  try {
+    const res = await fetch('/api/email/domains?provider=mail.gw', { headers: { Accept: 'application/ld+json' } })
+    if (res.ok) {
+      const data = await res.json()
+      const members = data['hydra:member'] || data
+      if (Array.isArray(members)) {
+        const active = members.filter((d: Record<string, unknown>) => d.isActive !== false && d.domain)
+        if (active.length > 0) {
+          return { domain: active[0].domain as string, provider: 'mail.gw' }
+        }
+      }
+    }
+  } catch {}
+  throw new Error('no_email_provider_available')
 }
 
 // ============================================================
@@ -962,12 +975,36 @@ function EmailTab() {
     setIsCreating(true)
     setTokenExpired(false)
 
+    // ── PROVEEDOR PRINCIPAL: GuerrillaMail (CORS abierto, directo) ──
+    // Un solo GET crea la dirección y devuelve el sid_token de sesión.
     try {
-      // ── DIRECT to mail.tm (bypasses Vercel) ──
-      // mail.tm has CORS: access-control-allow-origin: *
-      // Step 1: Get available domain
+      const res = await fetch(`${GUERRILLA_BASE}?f=get_email_address&lang=en`, {
+        headers: { 'Accept': 'application/json' },
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data.email_addr && data.sid_token) {
+          setAccount({
+            address: data.email_addr,
+            token: data.sid_token,
+            id: '1',
+            provider: 'guerrilla',
+          })
+          setMessages([])
+          setSelectedMsg(null)
+          toast.success(tt('email.creado'))
+          return
+        }
+      }
+    } catch {
+      // GuerrillaMail no disponible → pasar al respaldo
+    }
+
+    // ── RESPALDO: mail.tm vía proxy server-side (/api/email) ──
+    try {
+      // Step 1: Get available domain (vía proxy; lanza si ningún proveedor responde)
       const { domain, provider } = await getAvailableDomain()
-      const baseUrl = provider === 'mail.gw' ? 'https://api.mail.gw' : 'https://api.mail.tm'
+      const providerQs = provider === 'mail.gw' ? '?provider=mail.gw' : ''
 
       // Step 2: Generate random email address
       const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
@@ -983,7 +1020,7 @@ function EmailTab() {
       // Step 3: Create account (with retry)
       let accountData: Record<string, unknown> | null = null
       for (let attempt = 0; attempt < 3; attempt++) {
-        const createRes = await fetch(`${baseUrl}/accounts`, {
+        const createRes = await fetch(`/api/email/accounts${providerQs}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Accept': 'application/ld+json' },
           body: JSON.stringify({ address, password }),
@@ -1021,7 +1058,7 @@ function EmailTab() {
       // Step 4: Get JWT token
       let token = ''
       for (let attempt = 0; attempt < 3; attempt++) {
-        const tokenRes = await fetch(`${baseUrl}/token`, {
+        const tokenRes = await fetch(`/api/email/token${providerQs}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Accept': 'application/ld+json' },
           body: JSON.stringify({ address, password }),
@@ -1069,9 +1106,32 @@ function EmailTab() {
     if (!tok) return
 
     try {
-      // ── DIRECT to mail.tm (bypasses Vercel) ──
-      const baseUrl = p === 'mail.gw' ? 'https://api.mail.gw' : 'https://api.mail.tm'
-      const res = await fetch(`${baseUrl}/messages`, {
+      // ── GuerrillaMail: bandeja directa (CORS abierto) ──
+      if (p === 'guerrilla') {
+        const res = await fetch(`${GUERRILLA_BASE}?f=get_email_list&offset=0&sid_token=${encodeURIComponent(tok)}`, {
+          headers: { 'Accept': 'application/json' },
+        })
+        if (!res.ok) return
+        const data = await res.json()
+        const list = Array.isArray(data.list) ? data.list : []
+        setMessages(list.map((m: Record<string, unknown>) => {
+          const ts = Number(m.mail_timestamp) || 0
+          const from = parseFrom(String(m.mail_from || ''))
+          const excerpt = decodeEntities(String(m.mail_excerpt || '')).replace(/\s+/g, ' ').trim()
+          return {
+            id: String(m.mail_id || ''),
+            from,
+            subject: String(m.mail_subject || ''),
+            createdAt: ts > 0 ? new Date(ts * 1000).toISOString() : new Date().toISOString(),
+            intro: excerpt.slice(0, 140),
+          }
+        }))
+        return
+      }
+
+      // ── mail.tm / mail.gw: vía proxy server-side (directo falla por CORS) ──
+      const providerQs = p === 'mail.gw' ? '?provider=mail.gw' : ''
+      const res = await fetch(`/api/email/messages${providerQs}`, {
         headers: {
           'Accept': 'application/ld+json',
           'Authorization': `Bearer ${tok}`,
@@ -1099,9 +1159,33 @@ function EmailTab() {
     setIsLoadingMsg(true)
 
     try {
-      // ── DIRECT to mail.tm (bypasses Vercel) ──
-      const baseUrl = account.provider === 'mail.gw' ? 'https://api.mail.gw' : 'https://api.mail.tm'
-      const res = await fetch(`${baseUrl}/messages/${msg.id}`, {
+      // ── GuerrillaMail: detalle directo (CORS abierto) ──
+      if (account.provider === 'guerrilla') {
+        const res = await fetch(`${GUERRILLA_BASE}?f=fetch_email&email_id=${encodeURIComponent(msg.id)}&sid_token=${encodeURIComponent(account.token)}`, {
+          headers: { 'Accept': 'application/json' },
+        })
+        const data = await res.json()
+
+        if (data.error) {
+          toast.error(data.error)
+          return
+        }
+
+        const body = data.mail_body || data.mail_excerpt || tt('email.sin_contenido')
+        const from = parseFrom(String(data.mail_from || ''))
+
+        setSelectedMsg({
+          id: String(data.mail_id || msg.id),
+          from: from.address || msg.from.address,
+          subject: data.mail_subject || msg.subject,
+          body: sanitizeHtml(body),
+        })
+        return
+      }
+
+      // ── mail.tm / mail.gw: vía proxy server-side (directo falla por CORS) ──
+      const providerQs = account.provider === 'mail.gw' ? '?provider=mail.gw' : ''
+      const res = await fetch(`/api/email/messages/${msg.id}${providerQs}`, {
         headers: {
           'Accept': 'application/ld+json',
           'Authorization': `Bearer ${account.token}`,
@@ -1137,15 +1221,22 @@ function EmailTab() {
     if (!account) return
 
     try {
-      // ── DIRECT to mail.tm (bypasses Vercel) ──
-      const baseUrl = account.provider === 'mail.gw' ? 'https://api.mail.gw' : 'https://api.mail.tm'
-      await fetch(`${baseUrl}/accounts/${account.id}`, {
-        method: 'DELETE',
-        headers: {
-          'Accept': 'application/ld+json',
-          'Authorization': `Bearer ${account.token}`,
-        },
-      })
+      if (account.provider === 'guerrilla') {
+        // GuerrillaMail: invalida la sesión del buzón (fire-and-forget)
+        await fetch(`${GUERRILLA_BASE}?f=forget_me&email_addr=${encodeURIComponent(account.address)}&sid_token=${encodeURIComponent(account.token)}`, {
+          headers: { 'Accept': 'application/json' },
+        }).catch(() => {})
+      } else {
+        // ── mail.tm / mail.gw: vía proxy server-side (directo falla por CORS) ──
+        const providerQs = account.provider === 'mail.gw' ? '?provider=mail.gw' : ''
+        await fetch(`/api/email/accounts/${account.id}${providerQs}`, {
+          method: 'DELETE',
+          headers: {
+            'Accept': 'application/ld+json',
+            'Authorization': `Bearer ${account.token}`,
+          },
+        })
+      }
 
       setAccount(null)
       setMessages([])
