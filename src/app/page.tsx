@@ -6,12 +6,13 @@ import {
   CreditCard, Search, Tv, Mail, Settings, Copy, Check, Play,
   Trash2, RefreshCw, ChevronDown, Info, Moon, Sun,
   Loader2, Square, Send, ExternalLink, Zap, AlertTriangle, Shield, Fingerprint, ScanSearch,
-  MessageCircle, Phone, Share2, MapPin, Landmark, Globe, MonitorSmartphone, X
+  MessageCircle, Phone, Share2, MapPin, Landmark, Globe, MonitorSmartphone, X, EyeOff
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { IptvChecker } from '@/components/iptv/iptv-checker'
 import { BinSearcher } from '@/components/bin-searcher/bin-searcher'
 import { IpFraudChecker } from '@/components/ip-fraud/ip-fraud-checker'
+import { CcMaskTool } from '@/components/cc-mask/cc-mask'
 import { apiFetch } from '@/lib/api-config'
 import { IBAN_COUNTRIES, generateIban, formatIban, type IbanCountry } from '@/lib/iban-data'
 
@@ -34,7 +35,7 @@ const binCache = new Map<string, { country_name: string }>()
 // ============================================================
 
 type TabId = 'cards' | 'checker' | 'tools' | 'settings'
-type ToolId = 'iptv' | 'email' | 'address' | 'iban' | 'binsearch' | 'ipfraud'
+type ToolId = 'iptv' | 'email' | 'address' | 'iban' | 'binsearch' | 'ipfraud' | 'ccmask'
 
 interface GeneratedCard {
   number: string
@@ -236,6 +237,7 @@ const toolCards: { id: ToolId; labelKey: string; descKey: string; icon: typeof C
   { id: 'iban', labelKey: 'tool.iban', descKey: 'tool.iban_desc', icon: Landmark, color: 'text-purple-400', bg: 'bg-purple-500/10' },
   { id: 'binsearch', labelKey: 'tool.binsearch', descKey: 'tool.binsearch_desc', icon: ScanSearch, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
   { id: 'ipfraud', labelKey: 'tool.ipfraud', descKey: 'tool.ipfraud_desc', icon: Shield, color: 'text-rose-400', bg: 'bg-rose-500/10' },
+  { id: 'ccmask', labelKey: 'tool.ccmask', descKey: 'tool.ccmask_desc', icon: EyeOff, color: 'text-teal-400', bg: 'bg-teal-500/10' },
 ]
 
 // ============================================================
@@ -399,6 +401,7 @@ function HomeInner() {
                 {activeTool === 'iban' && <IbanTab />}
                 {activeTool === 'binsearch' && <BinSearchTab />}
                 {activeTool === 'ipfraud' && <IpFraudTab />}
+                {activeTool === 'ccmask' && <CcMaskTool />}
               </motion.div>
             </AnimatePresence>
           )}
