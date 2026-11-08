@@ -33,6 +33,7 @@ const T: Record<Lang, Record<string, string>> = {
     'tool.iban': 'IBAN', 'tool.iban_desc': 'Generador',
     'tool.binsearch': 'BIN Lookup', 'tool.binsearch_desc': 'Buscador',
     'tool.ipfraud': 'IP Fraude', 'tool.ipfraud_desc': 'Scanner',
+    'tool.ccmask': 'Enmascarar CC', 'tool.ccmask_desc': 'Enmascarar',
 
     // ============================================================
     // CARDS TAB
@@ -187,6 +188,20 @@ const T: Record<Lang, Record<string, string>> = {
     'ipfraud.district': 'Distrito', 'ipfraud.city': 'Ciudad', 'ipfraud.postalCode': 'Código Postal',
     'banner.grupo_titulo': '¡Únete al grupo oficial!',
     'banner.grupo_desc': 'Comunidad, novedades y soporte en WhatsApp',
+
+    // ============================================================
+    // CC MASK
+    // ============================================================
+    'ccmask.lista': 'Lista de CC', 'ccmask.modo': 'Variación',
+    'ccmask.modo_last4': 'Ocultar últimos 4', 'ccmask.modo_bin_last4': 'BIN + últimos 4',
+    'ccmask.modo_only_last4': 'Solo últimos 4', 'ccmask.modo_first6': 'Primeros 6', 'ccmask.modo_all': 'Todo',
+    'ccmask.mask_char': 'Carácter de máscara', 'ccmask.fecha': 'Fecha', 'ccmask.cvv': 'CVV',
+    'ccmask.resultados': 'resultados', 'ccmask.copiar_todo': 'Copiar Todo',
+    'ccmask.copiado': 'Copiado al portapapeles', 'ccmask.copiados': 'tarjetas copiadas',
+    'ccmask.invalidas': 'inválidas', 'ccmask.badge': 'Enmascarada', 'ccmask.invalida': 'Inválida',
+    'ccmask.origen': 'Original', 'ccmask.titulo': 'Enmascarar CC',
+    'ccmask.desc': 'Pega tus tarjetas y oculta los datos sensibles al instante',
+    'ccmask.invalidas_desc': 'No se detectó un número de tarjeta válido',
   },
 
   // ============================================================
@@ -201,6 +216,7 @@ const T: Record<Lang, Record<string, string>> = {
     'tool.iban': 'IBAN', 'tool.iban_desc': 'Generator',
     'tool.binsearch': 'BIN Lookup', 'tool.binsearch_desc': 'Search',
     'tool.ipfraud': 'IP Fraud', 'tool.ipfraud_desc': 'Scanner',
+    'tool.ccmask': 'CC Mask', 'tool.ccmask_desc': 'Masker',
 
     'cards.bin': 'BIN / Template', 'cards.generar': 'Generate', 'cards.resultados': 'results',
     'cards.mes': 'Month', 'cards.ano': 'Year',
@@ -324,6 +340,17 @@ const T: Record<Lang, Record<string, string>> = {
     'ipfraud.district': 'District', 'ipfraud.city': 'City', 'ipfraud.postalCode': 'Postal Code',
     'banner.grupo_titulo': 'Join the official group!',
     'banner.grupo_desc': 'Community, news and support on WhatsApp',
+
+    'ccmask.lista': 'CC List', 'ccmask.modo': 'Mode',
+    'ccmask.modo_last4': 'Hide last 4', 'ccmask.modo_bin_last4': 'BIN + last 4',
+    'ccmask.modo_only_last4': 'Only last 4', 'ccmask.modo_first6': 'First 6', 'ccmask.modo_all': 'All',
+    'ccmask.mask_char': 'Mask character', 'ccmask.fecha': 'Date', 'ccmask.cvv': 'CVV',
+    'ccmask.resultados': 'results', 'ccmask.copiar_todo': 'Copy All',
+    'ccmask.copiado': 'Copied to clipboard', 'ccmask.copiados': 'cards copied',
+    'ccmask.invalidas': 'invalid', 'ccmask.badge': 'Masked', 'ccmask.invalida': 'Invalid',
+    'ccmask.origen': 'Original', 'ccmask.titulo': 'CC Mask',
+    'ccmask.desc': 'Paste your cards and hide sensitive data instantly',
+    'ccmask.invalidas_desc': 'No valid card number detected',
   },
 
   // ============================================================
@@ -338,6 +365,7 @@ const T: Record<Lang, Record<string, string>> = {
     'tool.iban': 'IBAN', 'tool.iban_desc': 'Gerador',
     'tool.binsearch': 'BIN Lookup', 'tool.binsearch_desc': 'Pesquisa',
     'tool.ipfraud': 'IP Fraude', 'tool.ipfraud_desc': 'Scanner',
+    'tool.ccmask': 'Mascarar CC', 'tool.ccmask_desc': 'Mascarar',
 
     'cards.bin': 'BIN / Modelo', 'cards.generar': 'Gerar', 'cards.resultados': 'resultados',
     'cards.mes': 'Mês', 'cards.ano': 'Ano',
@@ -461,6 +489,17 @@ const T: Record<Lang, Record<string, string>> = {
     'ipfraud.district': 'Distrito', 'ipfraud.city': 'Cidade', 'ipfraud.postalCode': 'Código Postal',
     'banner.grupo_titulo': 'Entre no grupo oficial!',
     'banner.grupo_desc': 'Comunidade, novidades e suporte no WhatsApp',
+
+    'ccmask.lista': 'Lista de CC', 'ccmask.modo': 'Variação',
+    'ccmask.modo_last4': 'Ocultar últimos 4', 'ccmask.modo_bin_last4': 'BIN + últimos 4',
+    'ccmask.modo_only_last4': 'Só últimos 4', 'ccmask.modo_first6': 'Primeiros 6', 'ccmask.modo_all': 'Tudo',
+    'ccmask.mask_char': 'Caractere de máscara', 'ccmask.fecha': 'Data', 'ccmask.cvv': 'CVV',
+    'ccmask.resultados': 'resultados', 'ccmask.copiar_todo': 'Copiar Tudo',
+    'ccmask.copiado': 'Copiado', 'ccmask.copiados': 'cartões copiados',
+    'ccmask.invalidas': 'inválidos', 'ccmask.badge': 'Mascarado', 'ccmask.invalida': 'Inválido',
+    'ccmask.origen': 'Original', 'ccmask.titulo': 'Mascarar CC',
+    'ccmask.desc': 'Cole seus cartões e oculte dados sensíveis na hora',
+    'ccmask.invalidas_desc': 'Nenhum número de cartão válido detectado',
   },
 }
 
