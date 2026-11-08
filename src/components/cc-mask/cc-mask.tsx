@@ -1,10 +1,8 @@
 'use client'
 
-import { useState, useCallback, useMemo } from 'react'
+import { useMemo, useState, useCallback } from 'react'
 import { motion } from 'framer-motion'
-import {
-  EyeOff, Copy, Check, AlertTriangle, SlidersHorizontal
-} from 'lucide-react'
+import { EyeOff, Copy, Check, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 import { useT } from '@/lib/i18n'
 
@@ -12,7 +10,6 @@ import { useT } from '@/lib/i18n'
 // TYPES
 // ============================================================
 
-type MaskMode = 'last4mask' | 'bin_last4' | 'only_last4' | 'first6' | 'all'
 type MaskChar = 'x' | '*' | '•'
 
 interface ParsedCc {
@@ -22,20 +19,19 @@ interface ParsedCc {
   cvv: string
 }
 
-interface MaskedResult {
-  raw: string
-  output: string
-  number: string
-  valid: boolean
+interface Variation {
+  id: string
+  labelKey: string
+  value: string
 }
 
 // ============================================================
-// PARSING — accepts `number|mm|yyyy|cvv` (also `:`, `;`, spaces,
-// and `mm/yy` or `mm-yyyy` date forms). Returns null if no PAN found.
+// PARSING — a single card. Accepts `number|mm|yyyy|cvv` (also
+// `:`, `;`, spaces and `mm/yy` / `mm-yyyy` date forms).
 // ============================================================
 
-function parseCcLine(raw: string): ParsedCc | null {
-  const s = raw.trim()
+function parseCc(raw: string): ParsedCc | null {
+  const s = raw.trim().split('\n')[0].trim()
   if (!s) return null
 
   const tokens = s.split(/[\s|:;]+/).filter(Boolean)
@@ -69,160 +65,122 @@ function parseCcLine(raw: string): ParsedCc | null {
     const d = tok.replace(/\D/g, '')
     if (!d) continue
 
-    if (!month && d.length <= 2) {
-      month = d.padStart(2, '0')
-      continue
-    }
-    if (!year && d.length === 4) {
-      year = d
-      continue
-    }
-    if (!year && d.length === 2) {
-      year = '20' + d
-      continue
-    }
-    if (!cvv && d.length >= 3 && d.length <= 4) {
-      cvv = d
-      continue
-    }
+    if (!month && d.length <= 2) { month = d.padStart(2, '0'); continue }
+    if (!year && d.length === 4) { year = d; continue }
+    if (!year && d.length === 2) { year = '20' + d; continue }
+    if (!cvv && d.length >= 3 && d.length <= 4) { cvv = d; continue }
   }
 
   return { number, month, year, cvv }
 }
 
 // ============================================================
-// MASKING
+// MASKING HELPERS
 // ============================================================
 
-function maskNumber(num: string, mode: MaskMode, ch: MaskChar): string {
-  const len = num.length
+function maskPan(pan: string, ch: MaskChar, mode: 'only_last4' | 'bin_last4' | 'first12' | 'first6' | 'full'): string {
+  const len = pan.length
   switch (mode) {
-    case 'last4mask': // keep first len-4, mask last 4  → 553030869785xxxx
-      return num.slice(0, Math.max(len - 4, 0)) + ch.repeat(Math.min(4, len))
-    case 'bin_last4': // keep BIN (6) + last 4, mask middle → 553030xxxxxx3989
-      if (len <= 10) return ch.repeat(Math.max(len - 4, 0)) + num.slice(-4)
-      return num.slice(0, 6) + ch.repeat(len - 10) + num.slice(-4)
-    case 'only_last4': // mask all but last 4 → xxxxxxxxxxxx3989
-      return ch.repeat(Math.max(len - 4, 0)) + num.slice(-4)
-    case 'first6': // keep first 6, mask rest → 553030xxxxxxxxxx
-      return num.slice(0, 6) + ch.repeat(Math.max(len - 6, 0))
-    case 'all': // full mask → xxxxxxxxxxxxxxxx
+    case 'only_last4':
+      return ch.repeat(Math.max(len - 4, 0)) + pan.slice(-4)
+    case 'bin_last4':
+      if (len <= 10) return ch.repeat(Math.max(len - 4, 0)) + pan.slice(-4)
+      return pan.slice(0, 6) + ch.repeat(len - 10) + pan.slice(-4)
+    case 'first12':
+      return pan.slice(0, Math.max(len - 4, 0)) + ch.repeat(Math.min(4, len))
+    case 'first6':
+      return pan.slice(0, 6) + ch.repeat(Math.max(len - 6, 0))
+    case 'full':
       return ch.repeat(len)
     default:
-      return num
+      return pan
   }
 }
 
 // ============================================================
-// MODE DEFINITIONS
+// VARIATION GENERATION — every mask, all at once
 // ============================================================
 
-const MODES: { id: MaskMode; labelKey: string; example: string }[] = [
-  { id: 'last4mask', labelKey: 'ccmask.modo_last4', example: '553030869785xxxx' },
-  { id: 'bin_last4', labelKey: 'ccmask.modo_bin_last4', example: '553030xxxxxx3989' },
-  { id: 'only_last4', labelKey: 'ccmask.modo_only_last4', example: 'xxxxxxxxxxxx3989' },
-  { id: 'first6', labelKey: 'ccmask.modo_first6', example: '553030xxxxxxxxxx' },
-  { id: 'all', labelKey: 'ccmask.modo_all', example: 'xxxxxxxxxxxxxxxx' },
-]
+function buildVariations(p: ParsedCc, ch: MaskChar): Variation[] {
+  const date = p.month || p.year ? '|' + [p.month, p.year].filter(Boolean).join('|') : ''
+  const dateMasked = p.month || p.year
+    ? '|' + [p.month ? ch.repeat(p.month.length) : '', p.year ? ch.repeat(p.year.length) : ''].filter(Boolean).join('|')
+    : ''
+  const cvvMasked = p.cvv ? '|' + ch.repeat(p.cvv.length) : ''
+  const raw = p.number + date + (p.cvv ? '|' + p.cvv : '')
+
+  const candidates: Variation[] = [
+    { id: 'only_last4', labelKey: 'ccmask.v_only_last4', value: maskPan(p.number, ch, 'only_last4') + date },
+    { id: 'bin_last4', labelKey: 'ccmask.v_bin_last4', value: maskPan(p.number, ch, 'bin_last4') + date },
+    { id: 'first12', labelKey: 'ccmask.v_first12', value: maskPan(p.number, ch, 'first12') + date },
+    { id: 'first6', labelKey: 'ccmask.v_first6', value: maskPan(p.number, ch, 'first6') + date },
+    { id: 'full_number', labelKey: 'ccmask.v_full_number', value: maskPan(p.number, ch, 'full') + date },
+  ]
+
+  if (p.cvv) {
+    candidates.push({ id: 'cvv_only', labelKey: 'ccmask.v_cvv', value: p.number + date + cvvMasked })
+    candidates.push({ id: 'first12_cvv', labelKey: 'ccmask.v_first12_cvv', value: maskPan(p.number, ch, 'first12') + date + cvvMasked })
+    candidates.push({ id: 'all', labelKey: 'ccmask.v_all', value: maskPan(p.number, ch, 'full') + dateMasked + cvvMasked })
+  }
+
+  // Drop duplicates and any output that masks nothing (equals the raw input).
+  const seen = new Set<string>()
+  const out: Variation[] = []
+  for (const c of candidates) {
+    if (c.value === raw) continue
+    if (seen.has(c.value)) continue
+    seen.add(c.value)
+    out.push(c)
+  }
+  return out
+}
 
 const MASK_CHARS: MaskChar[] = ['x', '*', '•']
 
 // ============================================================
-// COMPONENT
+// COMPONENT — single card in, all variations out
 // ============================================================
 
 export function CcMasker() {
   const { t } = useT()
   const [input, setInput] = useState('')
-  const [mode, setMode] = useState<MaskMode>('last4mask')
   const [maskChar, setMaskChar] = useState<MaskChar>('x')
-  const [keepDate, setKeepDate] = useState(true)
-  const [keepCvv, setKeepCvv] = useState(false)
-  const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
+  const [copiedIdx, setCopiedIdx] = useState<string | null>(null)
   const [copiedAll, setCopiedAll] = useState(false)
 
-  // ── Live masking ──
-  const results = useMemo<MaskedResult[]>(() => {
-    const lines = input.split('\n')
-    const out: MaskedResult[] = []
-    for (const line of lines) {
-      const raw = line.trim()
-      if (!raw) continue
-      const parsed = parseCcLine(raw)
-      if (!parsed) {
-        out.push({ raw, output: raw, number: '', valid: false })
-        continue
-      }
-      const maskedNum = maskNumber(parsed.number, mode, maskChar)
-      let output = maskedNum
-      if (keepDate) {
-        if (parsed.month) output += '|' + parsed.month
-        if (parsed.year) output += '|' + parsed.year
-      }
-      if (keepCvv && parsed.cvv) output += '|' + parsed.cvv
-      out.push({ raw, output, number: parsed.number, valid: true })
-    }
-    return out
-  }, [input, mode, maskChar, keepDate, keepCvv])
+  const parsed = useMemo(() => parseCc(input), [input])
+  const variations = useMemo(() => (parsed ? buildVariations(parsed, maskChar) : []), [parsed, maskChar])
 
-  const validCount = results.filter(r => r.valid).length
-  const invalidCount = results.length - validCount
-
-  const copyOne = useCallback(async (text: string, idx: number) => {
-    await navigator.clipboard.writeText(text)
-    setCopiedIdx(idx)
+  const copyOne = useCallback(async (v: Variation) => {
+    await navigator.clipboard.writeText(v.value)
+    setCopiedIdx(v.id)
     toast.success(t('ccmask.copiado'))
     setTimeout(() => setCopiedIdx(null), 1500)
   }, [t])
 
   const copyAll = useCallback(async () => {
-    if (validCount === 0) return
-    const text = results.filter(r => r.valid).map(r => r.output).join('\n')
-    await navigator.clipboard.writeText(text)
+    if (variations.length === 0) return
+    await navigator.clipboard.writeText(variations.map(v => v.value).join('\n'))
     setCopiedAll(true)
-    toast.success(`${validCount} ${t('ccmask.copiados')}`)
+    toast.success(`${variations.length} ${t('ccmask.copiados')}`)
     setTimeout(() => setCopiedAll(false), 2000)
-  }, [results, validCount, t])
+  }, [variations, t])
+
+  const hasInput = input.trim().length > 0
 
   return (
     <div className="space-y-4">
-      {/* Input */}
+      {/* Single card input */}
       <div className="bg-[#111113] theme-card rounded-xl border border-white/[0.06] p-4 space-y-3">
-        <label className="text-xs font-medium text-white/50 theme-text-dim uppercase tracking-wider">{t('ccmask.lista')}</label>
-        <textarea
+        <label className="text-xs font-medium text-white/50 theme-text-dim uppercase tracking-wider">{t('ccmask.input_label')}</label>
+        <input
+          type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder={'5530308697853989|02|2029|067\n4147181496481361|09|2028|010'}
-          rows={4}
-          className="w-full bg-[#09090b] theme-input border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white theme-text placeholder-white/20 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 font-mono resize-none transition-colors"
+          placeholder="5530308697853989|02|2029|067"
+          inputMode="numeric"
+          className="w-full bg-[#09090b] theme-input border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white theme-text placeholder-white/20 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 font-mono transition-colors"
         />
-
-        {/* Mode selector */}
-        <div>
-          <label className="flex items-center gap-1.5 text-[11px] font-medium text-white/40 theme-text-dim uppercase tracking-wider mb-2">
-            <SlidersHorizontal className="w-3.5 h-3.5" />
-            {t('ccmask.modo')}
-          </label>
-          <div className="flex flex-wrap gap-1.5">
-            {MODES.map((m) => {
-              const active = mode === m.id
-              return (
-                <button
-                  key={m.id}
-                  onClick={() => setMode(m.id)}
-                  className={`px-3 py-1.5 rounded-lg text-[11px] font-medium border transition-all duration-200 ${
-                    active
-                      ? 'border-amber-500/40 bg-amber-500/15 text-amber-400'
-                      : 'border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.06]'
-                  }`}
-                  style={!active ? { color: 'var(--app-text-dim)' } : undefined}
-                >
-                  {t(m.labelKey)}
-                </button>
-              )
-            })}
-          </div>
-        </div>
 
         {/* Mask character */}
         <div>
@@ -244,42 +202,21 @@ export function CcMasker() {
             ))}
           </div>
         </div>
-
-        {/* Toggles */}
-        <div className="flex gap-2">
-          <button
-            onClick={() => setKeepDate(v => !v)}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border text-[11px] font-medium transition-all duration-200 ${
-              keepDate ? 'border-amber-500/40 bg-amber-500/15 text-amber-400' : 'border-white/[0.08] bg-white/[0.03]'
-            }`}
-            style={!keepDate ? { color: 'var(--app-text-dim)' } : undefined}
-          >
-            {t('ccmask.fecha')}
-            <span className={`w-2 h-2 rounded-full ${keepDate ? 'bg-amber-500' : 'bg-white/20'}`} />
-          </button>
-          <button
-            onClick={() => setKeepCvv(v => !v)}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border text-[11px] font-medium transition-all duration-200 ${
-              keepCvv ? 'border-amber-500/40 bg-amber-500/15 text-amber-400' : 'border-white/[0.08] bg-white/[0.03]'
-            }`}
-            style={!keepCvv ? { color: 'var(--app-text-dim)' } : undefined}
-          >
-            {t('ccmask.cvv')}
-            <span className={`w-2 h-2 rounded-full ${keepCvv ? 'bg-amber-500' : 'bg-white/20'}`} />
-          </button>
-        </div>
       </div>
 
-      {/* Results */}
-      {results.length > 0 && (
+      {/* Invalid input */}
+      {hasInput && !parsed && (
+        <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2.5">
+          <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+          <span className="text-xs text-amber-400/90">{t('ccmask.error_invalid')}</span>
+        </div>
+      )}
+
+      {/* Variations — generated automatically */}
+      {parsed && variations.length > 0 && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-white/40 theme-text-dim">
-              {validCount} {t('ccmask.resultados')}
-              {invalidCount > 0 && (
-                <span className="text-amber-500/70"> · {invalidCount} {t('ccmask.invalidas')}</span>
-              )}
-            </span>
+            <span className="text-xs text-white/40 theme-text-dim">{variations.length} {t('ccmask.resultados')}</span>
             <button
               onClick={copyAll}
               className="flex items-center gap-1.5 text-xs text-amber-500 hover:text-amber-400 transition-colors"
@@ -289,47 +226,40 @@ export function CcMasker() {
             </button>
           </div>
 
-          <div className="max-h-[60vh] overflow-y-auto space-y-2 custom-scrollbar">
-            {results.map((r, idx) => (
+          <div className="space-y-2">
+            {variations.map((v) => (
               <motion.div
-                key={`${r.raw}-${idx}`}
+                key={v.id}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: Math.min(idx * 0.02, 0.3), duration: 0.3 }}
+                transition={{ duration: 0.25 }}
                 className="relative rounded-xl border border-white/[0.06] overflow-hidden group"
                 style={{ background: 'linear-gradient(135deg, var(--app-card-gradient-from, #1a1a2e), var(--app-card-gradient-to, #111113))' }}
               >
-                <div className={`absolute left-0 top-0 bottom-0 w-0.5 ${r.valid ? 'bg-indigo-500/60' : 'bg-red-500/50'}`} />
-                <div className="p-3.5 pl-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1 space-y-1.5">
+                <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-indigo-500/60" />
+                <div className="p-3 pl-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1 space-y-1">
                       <div className="flex items-center gap-2">
-                        <EyeOff className={`w-3.5 h-3.5 ${r.valid ? 'text-indigo-400/70' : 'text-red-400/70'} shrink-0`} />
+                        <EyeOff className="w-3.5 h-3.5 text-indigo-400/70 shrink-0" />
                         <span className="text-[10px] uppercase tracking-wider font-medium" style={{ color: 'var(--app-text-faint)' }}>
-                          {r.valid ? t('ccmask.badge') : t('ccmask.invalida')}
+                          {t(v.labelKey)}
                         </span>
                       </div>
-                      <p className="font-mono text-sm tracking-wider break-all" style={{ color: r.valid ? 'var(--app-text-90)' : 'var(--app-text-dim)' }}>
-                        {r.output}
+                      <p className="font-mono text-sm tracking-wider break-all" style={{ color: 'var(--app-text-90)' }}>
+                        {v.value}
                       </p>
-                      {r.valid && r.output !== r.raw && (
-                        <p className="text-[10px] font-mono truncate" style={{ color: 'var(--app-text-faint)' }}>
-                          {t('ccmask.origen')}: {r.raw}
-                        </p>
-                      )}
                     </div>
-                    {r.valid && (
-                      <button
-                        onClick={() => copyOne(r.output, idx)}
-                        className="p-2 rounded-lg hover:bg-white/[0.06] transition-all duration-200 active:scale-95 shrink-0"
-                      >
-                        {copiedIdx === idx ? (
-                          <Check className="w-4 h-4 text-green-500" />
-                        ) : (
-                          <Copy className="w-4 h-4 transition-colors duration-200" style={{ color: 'var(--app-text-dim)' }} />
-                        )}
-                      </button>
-                    )}
+                    <button
+                      onClick={() => copyOne(v)}
+                      className="p-2 rounded-lg hover:bg-white/[0.06] transition-all duration-200 active:scale-95 shrink-0"
+                    >
+                      {copiedIdx === v.id ? (
+                        <Check className="w-4 h-4 text-green-500" />
+                      ) : (
+                        <Copy className="w-4 h-4 transition-colors duration-200" style={{ color: 'var(--app-text-dim)' }} />
+                      )}
+                    </button>
                   </div>
                 </div>
               </motion.div>
@@ -339,7 +269,7 @@ export function CcMasker() {
       )}
 
       {/* Empty state */}
-      {results.length === 0 && (
+      {!hasInput && (
         <div className="bg-[#111113] theme-card rounded-xl border border-white/[0.06] p-8 text-center">
           <div className="relative w-16 h-16 mx-auto mb-4">
             <div className="absolute inset-0 bg-indigo-500/10 rounded-2xl rotate-6" />
@@ -351,15 +281,6 @@ export function CcMasker() {
           <p className="text-xs max-w-[240px] mx-auto" style={{ color: 'var(--app-text-dim)' }}>
             {t('ccmask.desc')}
           </p>
-        </div>
-      )}
-
-      {invalidCount > 0 && (
-        <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
-          <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-          <span className="text-xs text-amber-400/90">
-            {invalidCount} {t('ccmask.invalidas')} — {t('ccmask.invalidas_desc')}
-          </span>
         </div>
       )}
     </div>
